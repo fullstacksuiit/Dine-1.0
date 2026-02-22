@@ -1,0 +1,99 @@
+{% extends "base_public.html" %}
+{% load static %}
+
+{% block title %}{{ restaurant.display_name }} | Order{% endblock %}
+
+{% block extra_css %}
+<link href="https://fonts.googleapis.com/css?family=Playfair+Display:700,900&display=swap" rel="stylesheet">
+{% endblock %}
+
+{% block footer %}{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto my-8 px-4">
+  <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+    <!-- Header -->
+    <div class="px-6 pt-8 pb-4 text-center border-b border-gray-50">
+      <h1 class="font-display text-3xl font-black text-gray-900 tracking-wide">{{ restaurant.display_name }}</h1>
+      <p class="text-sm text-gray-400 mt-1 uppercase tracking-widest font-medium">Order</p>
+      <div class="mt-3 text-sm text-gray-500">
+        Table: <span class="font-bold text-gray-800">{{ table_number }}</span>
+      </div>
+      {% if restaurant.full_address %}
+        <p class="text-xs text-gray-400 mt-1">{{ restaurant.full_address|default_if_none:''|linebreaksbr }}</p>
+      {% endif %}
+    </div>
+
+    <!-- Menu Content -->
+    <div class="px-6 py-4">
+      <form id="order-form" method="post">
+        {% csrf_token %}
+        {% for category, dishes in categories.items %}
+          <div class="mb-6 last:mb-0">
+            <h2 class="font-display text-lg font-bold text-gray-800 tracking-wide pb-2 mb-3 border-b border-gray-100">{{ category }}</h2>
+            <ul class="space-y-0">
+              {% for dish in dishes %}
+                <li class="flex items-center justify-between py-2.5 {% if not forloop.last %}border-b border-dotted border-gray-200{% endif %} gap-2">
+                  <span class="font-display text-base text-gray-800 truncate flex-1 min-w-0">{{ dish.name }}</span>
+                  <span class="text-sm font-bold text-primary-700 bg-primary-50 rounded-md px-2.5 py-0.5 whitespace-nowrap shadow-sm">₹{{ dish.restaurant_full_price|floatformat:2 }}</span>
+                  <span class="flex items-center gap-1.5 ml-2">
+                    <button type="button" onclick="changeQty('{{ dish.id }}', -1)" class="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold text-base flex items-center justify-center transition-colors">-</button>
+                    <input type="text" name="qty_{{ dish.id }}" id="qty_{{ dish.id }}" class="w-8 h-7 text-center border border-gray-200 rounded-lg text-sm font-semibold bg-white" value="0" readonly />
+                    <button type="button" onclick="changeQty('{{ dish.id }}', 1)" class="w-7 h-7 rounded-lg bg-primary-50 hover:bg-primary-100 text-primary-600 font-bold text-base flex items-center justify-center transition-colors">+</button>
+                  </span>
+                </li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% empty %}
+          <div class="text-center text-gray-400 py-12">No menu items found.</div>
+        {% endfor %}
+
+        <!-- Cart Summary (sticky bottom) -->
+        <div id="cart-summary" class="hidden sticky bottom-0 bg-primary-50 border-t border-primary-200 rounded-b-2xl -mx-6 px-6 py-4 mt-4 shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
+          <div id="cart-items" class="text-sm text-gray-700 mb-3 space-y-1"></div>
+          <button type="submit" class="w-full bg-primary-500 hover:bg-primary-700 text-white font-bold py-3 rounded-xl transition-all duration-200 shadow-sm text-sm">Place Order</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Footer -->
+    <div class="px-6 py-5 text-center border-t border-gray-50">
+      <p class="text-sm text-gray-400">DinePay | A <a href="https://strix.co.in/" class="text-primary-500 hover:text-primary-700 transition-colors">Strix</a> Venture</p>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  function changeQty(dishId, delta) {
+    var input = document.getElementById('qty_' + dishId);
+    var val = parseInt(input.value) || 0;
+    val = Math.max(0, val + delta);
+    input.value = val;
+    updateCart();
+  }
+  function updateCart() {
+    var items = [];
+    document.querySelectorAll('input[id^="qty_"]').forEach(function(input) {
+      var qty = parseInt(input.value) || 0;
+      if (qty > 0) {
+        var row = input.closest('li');
+        var name = row.querySelector('.font-display').textContent;
+        var price = row.querySelector('.text-primary-700').textContent;
+        items.push('<span class="font-medium">' + name + '</span> × ' + qty + ' <span class="text-primary-700 font-bold">' + price + '</span>');
+      }
+    });
+    var cart = document.getElementById('cart-summary');
+    var cartItems = document.getElementById('cart-items');
+    if (items.length > 0) {
+      cart.classList.remove('hidden');
+      cartItems.innerHTML = items.join('<br>');
+    } else {
+      cart.classList.add('hidden');
+      cartItems.innerHTML = '';
+    }
+  }
+</script>
+{% endblock %}

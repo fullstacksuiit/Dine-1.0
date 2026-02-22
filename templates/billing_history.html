@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Billing History | DinePay{% endblock %}
+
+{% block breadcrumb %}
+<span class="breadcrumb-restaurant">{{ request.restaurant.display_name|default:request.restaurant.name|default:"DinePay" }}</span>
+<span class="breadcrumb-sep">/</span>
+<span class="breadcrumb-page">Billing History</span>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-full mx-auto px-4 py-2">
+  <div class="bg-white rounded-2xl shadow-sm border border-gray-100">
+    <div class="p-5 border-b border-gray-100">
+      <h1 class="text-lg font-bold text-gray-800 mb-4">Sales Dashboard</h1>
+
+      <!-- Filters Form -->
+      <form method="POST">
+        {% csrf_token %}
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-gray-500 mb-1">Date Range</label>
+            <select id="quick-date-range" class="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none">
+              <option value="custom" {% if quick_range == 'custom' %}selected{% endif %}>Custom Range</option>
+              <option value="today" {% if quick_range == 'today' %}selected{% endif %}>Today</option>
+              <option value="yesterday" {% if quick_range == 'yesterday' %}selected{% endif %}>Yesterday</option>
+              <option value="last7" {% if quick_range == 'last7' %}selected{% endif %}>Last 7 Days</option>
+              <option value="last30" {% if quick_range == 'last30' %}selected{% endif %}>Last 30 Days</option>
+              <option value="this_month" {% if quick_range == 'this_month' %}selected{% endif %}>This Month</option>
+              <option value="last_month" {% if quick_range == 'last_month' %}selected{% endif %}>Last Month</option>
+              <option value="this_fy" {% if quick_range == 'this_fy' %}selected{% endif %}>Current FY</option>
+              <option value="last_fy" {% if quick_range == 'last_fy' %}selected{% endif %}>Last FY</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-500 mb-1">From</label>
+            <input type="date" id="from-date" name="from" class="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none" required>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-500 mb-1">To</label>
+            <input type="date" id="to-date" name="to" class="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none" required>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-500 mb-1">Order Type</label>
+            <select name="order_type" class="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none" required>
+              <option value="ALL">ALL</option>
+              <option value="RESTAURANT">RESTAURANT</option>
+              <option value="SWIGGY">SWIGGY</option>
+              <option value="ZOMATO">ZOMATO</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-500 mb-1">Payment Type</label>
+            <select name="payment_type" class="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none" required>
+              <option value="ALL">ALL</option>
+              <option value="CASH">CASH</option>
+              <option value="UPI">UPI</option>
+              <option value="CARD">CARD</option>
+              <option value="CREDIT">CREDIT</option>
+              <option value="Non Paid">Unpaid</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-500 mb-1">Report Type</label>
+            <select name="report_type" class="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none" required>
+              <option value="BILL">BILLS</option>
+              <option value="DISH">DISH</option>
+            </select>
+          </div>
+        </div>
+        <div class="flex gap-3 mt-4">
+          <button type="submit" class="bg-accent-400 hover:bg-accent-500 text-white font-semibold py-2 px-6 rounded-xl text-sm transition-all shadow-sm">Search</button>
+          <button type="submit" formaction="{% url 'report' %}" class="bg-primary-500 hover:bg-primary-700 text-white font-semibold py-2 px-6 rounded-xl text-sm transition-all shadow-sm">Download Report</button>
+        </div>
+      </form>
+
+      <!-- Summary -->
+      <div class="mt-4 bg-green-50 border-l-4 border-green-400 rounded-lg px-4 py-3 text-sm font-medium text-gray-700">
+        Avg: ₹{{ avg|default_if_none:"0.00" }} | Total: ₹{{ total_sale|default_if_none:"0.00" }}
+        {% for payment in total_sale_payment_type %}
+          | {{ payment.payment_type }}: ₹{{ payment.total_amount|default_if_none:"0.00" }}
+        {% endfor %}
+      </div>
+
+    </div>
+
+    <!-- Table Controls -->
+    <div class="px-5 py-3 border-b border-gray-50 flex flex-wrap items-center gap-3">
+      <span class="text-xs font-semibold text-gray-600">Columns:</span>
+      <label class="inline-flex items-center gap-1 text-xs text-gray-500 cursor-pointer"><input type="checkbox" class="col-toggle w-3.5 h-3.5 accent-primary-500 rounded" value="invoice" checked> Invoice</label>
+      <label class="inline-flex items-center gap-1 text-xs text-gray-500 cursor-pointer"><input type="checkbox" class="col-toggle w-3.5 h-3.5 accent-primary-500 rounded" value="date" checked> Date</label>
+      <label class="inline-flex items-center gap-1 text-xs text-gray-500 cursor-pointer"><input type="checkbox" class="col-toggle w-3.5 h-3.5 accent-primary-500 rounded" value="subtotal" checked> Subtotal</label>
+      <label class="inline-flex items-center gap-1 text-xs text-gray-500 cursor-pointer"><input type="checkbox" class="col-toggle w-3.5 h-3.5 accent-primary-500 rounded" value="discount" checked> Discount</label>
+      <label class="inline-flex items-center gap-1 text-xs text-gray-500 cursor-pointer"><input type="checkbox" class="col-toggle w-3.5 h-3.5 accent-primary-500 rounded" value="delivery" checked> Delivery</label>
+      <label class="inline-flex items-center gap-1 text-xs text-gray-500 cursor-pointer"><input type="checkbox" class="col-toggle w-3.5 h-3.5 accent-primary-500 rounded" value="packaging" checked> Packaging</label>
+      <label class="inline-flex items-center gap-1 text-xs text-gray-500 cursor-pointer"><input type="checkbox" class="col-toggle w-3.5 h-3.5 accent-primary-500 rounded" value="cgst" checked> CGST</label>
+      <label class="inline-flex items-center gap-1 text-xs text-gray-500 cursor-pointer"><input type="checkbox" class="col-toggle w-3.5 h-3.5 accent-primary-500 rounded" value="sgst" checked> SGST</label>
+      <label class="inline-flex items-center gap-1 text-xs text-gray-500 cursor-pointer"><input type="checkbox" class="col-toggle w-3.5 h-3.5 accent-primary-500 rounded" value="total" checked> Total</label>
+      <label class="inline-flex items-center gap-1 text-xs text-gray-500 cursor-pointer"><input type="checkbox" class="col-toggle w-3.5 h-3.5 accent-primary-500 rounded" value="payment" checked> Payment</label>
+      <label class="inline-flex items-center gap-1 text-xs text-gray-500 cursor-pointer"><input type="checkbox" class="col-toggle w-3.5 h-3.5 accent-primary-500 rounded" value="actions" checked> Actions</label>
+      <button id="save-col-prefs" class="hidden text-xs text-primary-500 font-medium">Save</button>
+      <span id="save-status" class="hidden text-xs text-green-600 font-medium">Saved!</span>
+      <div class="ml-auto">
+        <input id="table-search" type="search" placeholder="Search..." class="px-3 py-1.5 rounded-lg border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none w-44">
+      </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="overflow-x-auto">
+      <table class="w-full min-w-[700px] border-collapse" id="billing-history-table">
+        <thead>
+          <tr>
+            <th data-col="invoice" class="sortable cursor-pointer select-none bg-gray-50/95 text-gray-500 text-[0.7rem] font-semibold uppercase tracking-wider px-3 py-2.5 border-b border-gray-100 sticky top-0 z-[2] backdrop-blur-sm text-left" data-sort="invoice">Invoice <span class="sort-arrow text-[0.7rem] ml-0.5 text-gray-300" data-key="invoice"></span></th>
+            <th data-col="date" class="bg-gray-50/95 text-gray-500 text-[0.7rem] font-semibold uppercase tracking-wider px-3 py-2.5 border-b border-gray-100 sticky top-0 z-[2] backdrop-blur-sm text-left">Date & Time</th>
+            <th data-col="subtotal" class="bg-gray-50/95 text-gray-500 text-[0.7rem] font-semibold uppercase tracking-wider px-3 py-2.5 border-b border-gray-100 sticky top-0 z-[2] backdrop-blur-sm text-left">Subtotal</th>
+            <th data-col="discount" class="bg-gray-50/95 text-gray-500 text-[0.7rem] font-semibold uppercase tracking-wider px-3 py-2.5 border-b border-gray-100 sticky top-0 z-[2] backdrop-blur-sm text-left">Discount</th>
+            <th data-col="delivery" class="bg-gray-50/95 text-gray-500 text-[0.7rem] font-semibold uppercase tracking-wider px-3 py-2.5 border-b border-gray-100 sticky top-0 z-[2] backdrop-blur-sm text-left">Delivery</th>
+            <th data-col="packaging" class="bg-gray-50/95 text-gray-500 text-[0.7rem] font-semibold uppercase tracking-wider px-3 py-2.5 border-b border-gray-100 sticky top-0 z-[2] backdrop-blur-sm text-left">Packaging</th>
+            <th data-col="cgst" class="bg-gray-50/95 text-gray-500 text-[0.7rem] font-semibold uppercase tracking-wider px-3 py-2.5 border-b border-gray-100 sticky top-0 z-[2] backdrop-blur-sm text-left">CGST</th>
+            <th data-col="sgst" class="bg-gray-50/95 text-gray-500 text-[0.7rem] font-semibold uppercase tracking-wider px-3 py-2.5 border-b border-gray-100 sticky top-0 z-[2] backdrop-blur-sm text-left">SGST</th>
+            <th data-col="total" class="sortable cursor-pointer select-none bg-gray-50/95 text-gray-500 text-[0.7rem] font-semibold uppercase tracking-wider px-3 py-2.5 border-b border-gray-100 sticky top-0 z-[2] backdrop-blur-sm text-left" data-sort="total">Total <span class="sort-arrow text-[0.7rem] ml-0.5 text-gray-300" data-key="total"></span></th>
+            <th data-col="payment" class="bg-gray-50/95 text-gray-500 text-[0.7rem] font-semibold uppercase tracking-wider px-3 py-2.5 border-b border-gray-100 sticky top-0 z-[2] backdrop-blur-sm text-left">Payment</th>
+            <th data-col="actions" class="bg-gray-50/95 text-gray-500 text-[0.7rem] font-semibold uppercase tracking-wider px-3 py-2.5 border-b border-gray-100 sticky top-0 z-[2] backdrop-blur-sm text-left">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for invoice in bills %}
+          <tr class="{% if invoice.is_deleted %}line-through opacity-40{% endif %} hover:bg-primary-50 transition-colors even:bg-gray-50/50 even:hover:bg-primary-50">
+            <td data-col="invoice" class="px-3 py-2.5 text-[0.8rem] text-gray-700 align-middle border-b border-gray-50">
+              <span class="font-semibold">{{ invoice.full_invoice_number }}</span>
+              <div class="text-xs text-gray-400 mt-0.5">
+                {% if invoice.is_takeaway %}TAKEAWAY{% else %}Table #{{ invoice.table_number }}{% endif %}
+                {% if invoice.is_edited %}<span class="inline-block ml-1 px-1.5 py-0.5 text-[10px] font-bold rounded bg-blue-100 text-blue-700">EDITED</span>{% endif %}
+              </div>
+            </td>
+            <td data-col="date" class="px-3 py-2.5 text-[0.8rem] text-gray-700 align-middle border-b border-gray-50">
+              <span class="text-sm">{{ invoice.date|date:"d/m/Y" }}</span>
+              <div class="text-xs text-gray-400">{{ invoice.time|time:"h:i A" }}</div>
+            </td>
+            <td data-col="subtotal" class="px-3 py-2.5 text-[0.8rem] text-gray-700 align-middle border-b border-gray-50">₹{{ invoice.sub_total }}</td>
+            <td data-col="discount" class="px-3 py-2.5 text-[0.8rem] text-gray-700 align-middle border-b border-gray-50">₹{{ invoice.discount }}</td>
+            <td data-col="delivery" class="px-3 py-2.5 text-[0.8rem] text-gray-700 align-middle border-b border-gray-50">₹{{ invoice.delivery_charge }}</td>
+            <td data-col="packaging" class="px-3 py-2.5 text-[0.8rem] text-gray-700 align-middle border-b border-gray-50">₹{{ invoice.packaging_charge }}</td>
+            <td data-col="cgst" class="px-3 py-2.5 text-[0.8rem] text-gray-700 align-middle border-b border-gray-50">₹{{ invoice.cgst }}</td>
+            <td data-col="sgst" class="px-3 py-2.5 text-[0.8rem] text-gray-700 align-middle border-b border-gray-50">₹{{ invoice.sgst }}</td>
+            <td data-col="total" class="px-3 py-2.5 text-[0.8rem] text-gray-700 align-middle border-b border-gray-50"><strong class="text-gray-900">₹{{ invoice.amount }}</strong></td>
+            <td data-col="payment" class="px-3 py-2.5 text-[0.8rem] text-gray-700 align-middle border-b border-gray-50">
+              {% if invoice.payment_status == "PAID" %}
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700">{{ invoice.payment_type }}</span>
+              {% else %}
+                <select class="px-2 py-1 rounded-lg border border-red-200 text-xs bg-red-50 text-red-700 focus:ring-1 focus:ring-red-100 outline-none" onchange="settleBill('{{ invoice.id }}', this.value)">
+                  <option value="" selected>UNPAID</option>
+                  <option value="CASH">Settle - CASH</option>
+                  <option value="UPI">Settle - UPI</option>
+                  <option value="CARD">Settle - CARD</option>
+                  <option value="CREDIT">Settle - CREDIT</option>
+                </select>
+              {% endif %}
+            </td>
+            <td data-col="actions" class="px-3 py-2.5 text-[0.8rem] text-gray-700 align-middle border-b border-gray-50">
+              <div class="flex gap-1.5">
+                <a href="{% url 'invoice' invoice.id %}" target="_blank" class="px-2 py-1 rounded-lg text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 transition-colors">Bill</a>
+                <a href="{% url 'order' %}?edit_bill={{ invoice.id }}" class="px-2 py-1 rounded-lg text-xs font-medium text-primary-700 bg-primary-50 hover:bg-primary-100 transition-colors">Edit</a>
+                <button onclick="deleteBill('{{ invoice.id }}', '{{ invoice.full_invoice_number }}')" class="px-2 py-1 rounded-lg text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 transition-colors">Del</button>
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="11" class="text-center py-12">
+            <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gray-50 mb-3">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+            </div>
+            <p class="text-sm text-gray-400">No bills found for this period</p>
+            <p class="text-xs text-gray-300 mt-1">Try adjusting your date range or filters</p>
+          </td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.19.2/axios.js"></script>
+<script>
+  function settleBill(billId, paymentType) {
+    if (!paymentType) return;
+    axios.defaults.xsrfCookieName = 'csrftoken';
+    axios.defaults.xsrfHeaderName = 'X-CSRFTOKEN';
+    axios.post(`${window.location.origin}/sale/api/bills/${billId}/settle/`, { payment_type: paymentType })
+    .then(res => { showToast('Bill settled as ' + paymentType); location.reload(); })
+    .catch(err => showToast('Failed to settle bill', 'error'));
+  }
+  function deleteBill(billId, invoiceNumber) {
+    if (!confirm(`Are you sure you want to delete bill ${invoiceNumber}? This cannot be undone.`)) return;
+    axios.defaults.xsrfCookieName = 'csrftoken';
+    axios.defaults.xsrfHeaderName = 'X-CSRFTOKEN';
+    event.target.disabled = true;
+    event.target.textContent = '...';
+    axios.delete(`${window.location.origin}/sale/api/bills/${billId}`)
+    .then(res => { showToast('Bill deleted'); location.reload(); })
+    .catch(err => { console.error('Delete error:', err); showToast('Failed to delete bill', 'error'); event.target.disabled = false; event.target.textContent = 'Del'; });
+  }
+
+  // Column toggle
+  const COL_PREF_KEY = 'billing_history_col_prefs';
+  function saveColPrefs() {
+    const prefs = {};
+    document.querySelectorAll('.col-toggle').forEach(cb => { prefs[cb.value] = cb.checked; });
+    localStorage.setItem(COL_PREF_KEY, JSON.stringify(prefs));
+    const status = document.getElementById('save-status');
+    status.style.display = 'inline'; setTimeout(() => { status.style.display = 'none'; }, 1200);
+  }
+  function loadColPrefs() {
+    const prefs = JSON.parse(localStorage.getItem(COL_PREF_KEY) || '{}');
+    document.querySelectorAll('.col-toggle').forEach(cb => { if (prefs.hasOwnProperty(cb.value)) cb.checked = prefs[cb.value]; });
+  }
+  function applyColPrefs() {
+    document.querySelectorAll('.col-toggle').forEach(cb => {
+      var col = cb.value, checked = cb.checked;
+      document.querySelectorAll('th[data-col="'+col+'"],td[data-col="'+col+'"]').forEach(el => { el.style.display = checked ? '' : 'none'; });
+    });
+  }
+  document.addEventListener('DOMContentLoaded', function() {
+    loadColPrefs(); applyColPrefs();
+    document.querySelectorAll('.col-toggle').forEach(cb => { cb.addEventListener('change', function() { applyColPrefs(); saveColPrefs(); }); });
+  });
+
+  // Table search
+  document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('table-search');
+    if (searchInput) {
+      searchInput.addEventListener('input', function() {
+        const value = this.value.trim().toLowerCase();
+        document.querySelectorAll('#billing-history-table tbody tr').forEach(function(row) {
+          if (row.querySelectorAll('td').length === 1) { row.style.display = ''; return; }
+          let match = false;
+          row.querySelectorAll('td').forEach(function(td) {
+            if (td.offsetParent !== null && td.textContent.toLowerCase().indexOf(value) !== -1) match = true;
+          });
+          row.style.display = (match || value === '') ? '' : 'none';
+        });
+      });
+    }
+  });
+
+  // Date range quick select
+  document.addEventListener('DOMContentLoaded', function() {
+    function pad(n) { return n < 10 ? '0' + n : n; }
+    function formatDate(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+    function getFiscalYearDates(offset) {
+      const now = new Date(); let year = now.getFullYear();
+      if (now.getMonth() + 1 < 4) year--;
+      return [formatDate(new Date(year + offset, 3, 1)), formatDate(new Date(year + offset + 1, 2, 31))];
+    }
+    const quick = document.getElementById('quick-date-range'), from = document.getElementById('from-date'), to = document.getElementById('to-date');
+    if (quick && from && to) {
+      quick.addEventListener('change', function() {
+        const today = new Date(); let fromVal = '', toVal = '';
+        switch (this.value) {
+          case 'today': fromVal = toVal = formatDate(today); break;
+          case 'yesterday': const y = new Date(today); y.setDate(today.getDate()-1); fromVal = toVal = formatDate(y); break;
+          case 'last7': const l7 = new Date(today); l7.setDate(today.getDate()-6); fromVal = formatDate(l7); toVal = formatDate(today); break;
+          case 'last30': const l30 = new Date(today); l30.setDate(today.getDate()-29); fromVal = formatDate(l30); toVal = formatDate(today); break;
+          case 'this_month': fromVal = formatDate(new Date(today.getFullYear(), today.getMonth(), 1)); toVal = formatDate(today); break;
+          case 'last_month': fromVal = formatDate(new Date(today.getFullYear(), today.getMonth()-1, 1)); toVal = formatDate(new Date(today.getFullYear(), today.getMonth(), 0)); break;
+          case 'this_fy': [fromVal, toVal] = getFiscalYearDates(0); break;
+          case 'last_fy': [fromVal, toVal] = getFiscalYearDates(-1); break;
+        }
+        from.value = fromVal; to.value = toVal;
+      });
+    }
+  });
+
+  // Sort
+  let currentSort = {key:'date',dir:'desc'};
+  function renderSortArrows() {
+    document.querySelectorAll('.sort-arrow').forEach(span => {
+      const key = span.getAttribute('data-key');
+      if (currentSort.key===key) { span.classList.add('text-accent-500', 'font-bold'); span.classList.remove('text-gray-300'); span.innerHTML = currentSort.dir==='asc'?'&#9650;':'&#9660;'; }
+      else { span.classList.remove('text-accent-500', 'font-bold'); span.classList.add('text-gray-300'); span.innerHTML = '&#9650;'; }
+    });
+  }
+  function compareRows(a,b,key,dir) {
+    let va=a.getAttribute('data-'+key)||'',vb=b.getAttribute('data-'+key)||'';
+    if(key==='total'){va=parseFloat(va.replace(/[^\d.\-]/g,''))||0;vb=parseFloat(vb.replace(/[^\d.\-]/g,''))||0;}
+    else if(key==='date'){va=new Date(va);vb=new Date(vb);}else{va=va.toLowerCase();vb=vb.toLowerCase();}
+    if(va<vb)return dir==='asc'?-1:1;if(va>vb)return dir==='asc'?1:-1;return 0;
+  }
+  function updateSortTable() {
+    const tbody = document.querySelector('#billing-history-table tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr')).filter(r=>r.querySelectorAll('td').length>1);
+    rows.forEach(row=>{
+      row.setAttribute('data-invoice',row.querySelector('td[data-col="invoice"]').textContent.trim());
+      row.setAttribute('data-date',row.querySelector('td[data-col="date"]').textContent.trim().split("\n")[0]);
+      row.setAttribute('data-total',row.querySelector('td[data-col="total"]').textContent.replace(/[^\d.\-]/g,''));
+    });
+    rows.sort((a,b)=>compareRows(a,b,currentSort.key,currentSort.dir));
+    rows.forEach(row=>tbody.appendChild(row));
+    renderSortArrows();
+  }
+  document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('th.sortable').forEach(th=>{
+      th.addEventListener('click', function(){
+        const key=th.getAttribute('data-sort');
+        if(currentSort.key===key) currentSort.dir=currentSort.dir==='asc'?'desc':'asc';
+        else {currentSort.key=key;currentSort.dir='desc';}
+        updateSortTable();
+      });
+    });
+    updateSortTable();
+  });
+</script>
+{% endblock %}

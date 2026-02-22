@@ -1,0 +1,12 @@
+#invoice-POS {
+    /* box-shadow: 0 0 1in -0.25in rgba(0, 0, 0, 0.5); */
+    /*padding: 5mm;*/
+    margin-top: 0;
+    margin: 0 auto;
+    width: 10cm;
+    /* background: #FFF; */
+    background: transparent; 
+    font-family: 'monospace', monospace;
+    /*font-family: Arial,Helvetica Neue,Helvetica,sans-serif; */
+  
+  }

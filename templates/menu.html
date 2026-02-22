@@ -1,0 +1,358 @@
+{% extends "base.html" %}
+{% load static %}
+{% load group_filters %}
+
+{% block title %}Menu | DinePay{% endblock %}
+
+{% block breadcrumb %}
+<span class="breadcrumb-restaurant">{{ request.restaurant.display_name|default:request.restaurant.name|default:"DinePay" }}</span>
+<span class="breadcrumb-sep">/</span>
+<span class="breadcrumb-page">Menu</span>
+{% endblock %}
+
+{% block inline_css %}
+<style>
+  @keyframes modalSlideUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="menu" v-cloak>
+  <!-- Add Dish Modal -->
+  <div class="fixed inset-0 bg-gray-900/75 backdrop-blur-sm flex items-center justify-center z-[1000] hidden" id="addDishModal">
+    <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-xl mx-4" style="animation: modalSlideUp 0.25s ease-out;">
+      <div class="flex items-center justify-between mb-5">
+        <h3 class="text-xl font-bold text-gray-800">Add Dish</h3>
+        <button class="text-gray-400 hover:text-gray-600 text-xl leading-none" onclick="closeAddDishModal()">&times;</button>
+      </div>
+      <form @submit.prevent="createDish">
+        <div class="mb-3">
+          <label class="block text-sm font-semibold text-primary-600 mb-1.5">Name</label>
+          <input type="text" v-model="new_dish.name" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all" required placeholder="Dish name">
+        </div>
+        <div class="mb-3">
+          <label class="block text-sm font-semibold text-primary-600 mb-1.5">Course</label>
+          <input type="text" v-model="new_dish.category" list="courses" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all" required placeholder="Course name">
+          <datalist id="courses"><option v-for="course in courses" :value="course.name"></option></datalist>
+        </div>
+        <div class="mb-3">
+          <label class="block text-sm font-semibold text-primary-600 mb-1.5">Restaurant Price</label>
+          <div class="grid grid-cols-2 gap-2">
+            <input type="number" v-model="new_dish.half_price" class="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all" min="0" step="0.01" placeholder="Half">
+            <input type="number" v-model="new_dish.full_price" class="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all" min="0" step="0.01" placeholder="Full">
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="block text-sm font-semibold text-primary-600 mb-1.5">Swiggy Price</label>
+          <div class="grid grid-cols-2 gap-2">
+            <input type="number" v-model="new_dish.swiggy_half_price" class="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all" min="0" step="0.01" placeholder="Half">
+            <input type="number" v-model="new_dish.swiggy_full_price" class="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all" min="0" step="0.01" placeholder="Full">
+          </div>
+        </div>
+        <div class="mb-5">
+          <label class="block text-sm font-semibold text-primary-600 mb-1.5">Zomato Price</label>
+          <div class="grid grid-cols-2 gap-2">
+            <input type="number" v-model="new_dish.zomato_half_price" class="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all" min="0" step="0.01" placeholder="Half">
+            <input type="number" v-model="new_dish.zomato_full_price" class="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all" min="0" step="0.01" placeholder="Full">
+          </div>
+        </div>
+        <div class="flex items-center justify-end gap-3">
+          <button type="button" class="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors" onclick="closeAddDishModal()">Cancel</button>
+          <button type="submit" class="px-5 py-2 text-sm font-semibold text-white bg-primary-500 hover:bg-primary-700 rounded-xl transition-all shadow-sm hover:shadow-md">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Update Dish Modal -->
+  <div class="fixed inset-0 bg-gray-900/75 backdrop-blur-sm flex items-center justify-center z-[1000] hidden" id="updateDishModal">
+    <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-xl mx-4" style="animation: modalSlideUp 0.25s ease-out;">
+      <div class="flex items-center justify-between mb-5">
+        <h3 class="text-xl font-bold text-gray-800">Update Dish</h3>
+        <button class="text-gray-400 hover:text-gray-600 text-xl leading-none" @click="closeUpdateDishModal">&times;</button>
+      </div>
+      <form @submit.prevent="submitUpdateDish">
+        <div class="mb-3">
+          <label class="block text-sm font-semibold text-primary-600 mb-1.5">Dish Name *</label>
+          <input type="text" v-model="update_dish.name" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all" required placeholder="Enter dish name">
+        </div>
+        <div class="mb-3">
+          <label class="block text-sm font-semibold text-primary-600 mb-1.5">Course *</label>
+          <input type="text" v-model="update_dish.course_name" list="courses-u" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all" required placeholder="Select or enter course">
+          <datalist id="courses-u"><option v-for="course in courses" :value="course.name"></option></datalist>
+        </div>
+        <div class="mb-3">
+          <label class="block text-sm font-semibold text-primary-600 mb-1.5">Restaurant Price</label>
+          <div class="grid grid-cols-2 gap-2">
+            <input type="number" v-model="update_dish.restaurant_half_price" class="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all" min="0" step="0.01" placeholder="Half">
+            <input type="number" v-model="update_dish.restaurant_full_price" class="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all" min="0" step="0.01" placeholder="Full">
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="block text-sm font-semibold text-primary-600 mb-1.5">Swiggy Price</label>
+          <div class="grid grid-cols-2 gap-2">
+            <input type="number" v-model="update_dish.swiggy_half_price" class="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all" min="0" step="0.01" placeholder="Half">
+            <input type="number" v-model="update_dish.swiggy_full_price" class="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all" min="0" step="0.01" placeholder="Full">
+          </div>
+        </div>
+        <div class="mb-5">
+          <label class="block text-sm font-semibold text-primary-600 mb-1.5">Zomato Price</label>
+          <div class="grid grid-cols-2 gap-2">
+            <input type="number" v-model="update_dish.zomato_half_price" class="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all" min="0" step="0.01" placeholder="Half">
+            <input type="number" v-model="update_dish.zomato_full_price" class="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all" min="0" step="0.01" placeholder="Full">
+          </div>
+        </div>
+        <div class="flex items-center justify-end gap-3">
+          <button type="button" class="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors" @click="closeUpdateDishModal">Cancel</button>
+          <button type="submit" class="px-5 py-2 text-sm font-semibold text-white bg-primary-500 hover:bg-primary-700 rounded-xl transition-all shadow-sm hover:shadow-md inline-flex items-center gap-1.5">
+            <i data-feather="save" style="width:14px;height:14px;"></i> Update
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Delete Modal -->
+  <div class="fixed inset-0 bg-gray-900/75 backdrop-blur-sm flex items-center justify-center z-[1000] hidden" id="deleteModal">
+    <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md mx-4 text-center" style="animation: modalSlideUp 0.25s ease-out;">
+      <div class="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
+        <i data-feather="alert-triangle" class="text-red-500" style="width:28px;height:28px;"></i>
+      </div>
+      <h5 class="text-xl font-bold text-gray-800 mb-2">Delete Dish</h5>
+      <p class="text-sm text-gray-400 mb-6">Are you sure? This action cannot be undone.</p>
+      <div class="flex items-center justify-center gap-3">
+        <button class="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors" onclick="closeDeleteModal()">Cancel</button>
+        <button class="px-5 py-2 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 rounded-xl transition-all shadow-sm inline-flex items-center gap-1.5" onclick="confirmDelete()">
+          <i data-feather="trash-2" style="width:14px;height:14px;"></i> Delete
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Course Reorder Modal -->
+  {% if request.user|has_group:'MANAGER' or request.user|has_group:'OWNER' %}
+  <div class="fixed inset-0 bg-gray-900/75 backdrop-blur-sm flex items-center justify-center z-[1000]" v-show="showOrderModal" style="display:none;">
+    <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4" style="animation: modalSlideUp 0.25s ease-out;">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-xl font-bold text-gray-800">Reorder Courses</h3>
+        <button class="text-gray-400 hover:text-gray-600 text-xl leading-none" @click="showOrderModal = false">&times;</button>
+      </div>
+      <p class="text-sm text-gray-500 mb-3">Drag courses to reorder them:</p>
+      <ul id="course-order-list" class="max-h-[300px] overflow-y-auto list-none p-0">
+        <li v-for="course in orderedCourses" :key="course.id" :data-key="course.id" class="flex items-center gap-2 px-4 py-3 bg-white border border-gray-200 rounded-xl mb-2 cursor-move text-sm font-medium hover:bg-primary-50 transition-colors">
+          <i data-feather="menu" style="width:14px;height:14px;" class="text-gray-400 flex-shrink-0"></i>
+          [[ course.name ]]
+        </li>
+      </ul>
+      <div class="flex items-center justify-end gap-3 mt-5">
+        <button class="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors" @click="showOrderModal = false">Cancel</button>
+        <button class="px-5 py-2 text-sm font-semibold text-white bg-primary-500 hover:bg-primary-700 rounded-xl transition-all shadow-sm inline-flex items-center gap-1.5" @click="saveCourseOrder" :disabled="savingOrder">
+          <span v-if="savingOrder">Saving...</span>
+          <span v-else class="inline-flex items-center gap-1.5"><i data-feather="save" style="width:14px;height:14px;"></i> Save</span>
+        </button>
+      </div>
+      <div v-if="orderSaved" class="text-center mt-3">
+        <span class="inline-flex items-center gap-1 text-sm text-accent-400 font-semibold">
+          <i data-feather="check-circle" style="width:14px;height:14px;"></i> Saved!
+        </span>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Page Content -->
+  <div class="max-w-7xl mx-auto px-4 py-2">
+    <!-- Header -->
+    <div class="flex items-center gap-3 mb-3">
+      <div class="w-10 h-10 rounded-xl bg-primary-50 flex items-center justify-center">
+        <i data-feather="book-open" class="text-primary-500" style="width:20px;height:20px;"></i>
+      </div>
+      <h1 class="text-2xl font-bold text-gray-800">Menu</h1>
+    </div>
+
+    <!-- Action Bar -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
+      <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+        <div class="flex items-center gap-3 flex-1 min-w-0">
+          <input type="search" id="myInput" onkeyup="filterTable()" placeholder="Search dishes..."
+            class="w-full max-w-xs px-4 py-2 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+          <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-primary-50 text-primary-500 whitespace-nowrap">[[total_dishes]] dishes</span>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <a href="{% url 'public_menu' restaurant.id %}" target="_blank" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 transition-colors">View Menu</a>
+          <button class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 transition-colors" @click="downloadPublicMenuQR">QR Code</button>
+          <button class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 transition-colors" @click="showOrderModal = true">Reorder</button>
+          <a href="{% url 'dishes_export' %}" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-accent-400 bg-accent-50 hover:bg-accent-100 transition-colors">Export</a>
+          <form id="csv-upload-form" action="{% url 'dishes_import' %}" method="post" enctype="multipart/form-data" class="inline-block">
+            {% csrf_token %}
+            <label class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 transition-colors cursor-pointer">
+              Import <input type="file" name="file" accept=".xlsx" class="hidden" onchange="document.getElementById('csv-upload-form').submit();">
+            </label>
+          </form>
+          {% if request.user|has_group:'MANAGER' or request.user|has_group:'OWNER' %}
+          <button class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-primary-500 hover:bg-primary-700 transition-all shadow-sm" onclick="openAddDishModal()">+ Add Dish</button>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Column Controls -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Columns:</span>
+        <label class="inline-flex items-center gap-1.5 text-sm text-gray-600 cursor-pointer"><input type="checkbox" class="col-toggle rounded" value="name" checked> Name</label>
+        <label class="inline-flex items-center gap-1.5 text-sm text-gray-600 cursor-pointer"><input type="checkbox" class="col-toggle rounded" value="half" checked> Half</label>
+        <label class="inline-flex items-center gap-1.5 text-sm text-gray-600 cursor-pointer"><input type="checkbox" class="col-toggle rounded" value="full" checked> Full</label>
+        <label class="inline-flex items-center gap-1.5 text-sm text-gray-600 cursor-pointer"><input type="checkbox" class="col-toggle rounded" value="shalf" checked> S. Half</label>
+        <label class="inline-flex items-center gap-1.5 text-sm text-gray-600 cursor-pointer"><input type="checkbox" class="col-toggle rounded" value="sfull" checked> S. Full</label>
+        <label class="inline-flex items-center gap-1.5 text-sm text-gray-600 cursor-pointer"><input type="checkbox" class="col-toggle rounded" value="zhalf" checked> Z. Half</label>
+        <label class="inline-flex items-center gap-1.5 text-sm text-gray-600 cursor-pointer"><input type="checkbox" class="col-toggle rounded" value="zfull" checked> Z. Full</label>
+        <label class="inline-flex items-center gap-1.5 text-sm text-gray-400 cursor-default"><input type="checkbox" class="col-toggle rounded" value="actions" checked disabled> Actions</label>
+        <button id="save-col-prefs" class="inline-flex items-center px-3 py-1 rounded-lg text-xs font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 transition-colors">Save</button>
+        <span id="save-status" class="text-xs font-medium text-accent-400" style="display:none;">Saved!</span>
+      </div>
+    </div>
+
+    <!-- Menu Table -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div v-if="!dishes.length" class="py-16 text-center">
+        <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gray-50 mb-4">
+          <i data-feather="book-open" class="text-gray-300" style="width:28px;height:28px;"></i>
+        </div>
+        <p class="text-sm text-gray-500 mb-1">No dishes yet</p>
+        <p class="text-xs text-gray-400 mb-4">Add your first dish to get started</p>
+        {% if request.user|has_group:'MANAGER' or request.user|has_group:'OWNER' %}
+        <button class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-primary-500 hover:bg-primary-700 transition-all shadow-sm" onclick="openAddDishModal()">+ Add Dish</button>
+        {% endif %}
+      </div>
+      <div v-show="dishes.length" class="overflow-x-auto">
+        <table id="myTable" class="w-full min-w-[640px]">
+          <thead>
+            <tr class="bg-gray-50 border-b border-gray-100">
+              <th data-col="name" class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Name</th>
+              <th data-col="half" class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Half</th>
+              <th data-col="full" class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Full</th>
+              <th data-col="shalf" class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">S. Half</th>
+              <th data-col="sfull" class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">S. Full</th>
+              <th data-col="zhalf" class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Z. Half</th>
+              <th data-col="zfull" class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Z. Full</th>
+              <th data-col="actions" class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template v-for="(group, courseName) in groupedDishes">
+              <tr>
+                <td colspan="8" class="px-4 py-2.5 bg-primary-50 text-primary-600 font-semibold text-sm border-b border-primary-100">
+                  [[ courseName || 'Uncategorized' ]]
+                </td>
+              </tr>
+              <tr v-for="(dish, i) in group" :key="dish.id" class="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
+                <td data-col="name" class="px-4 py-3 text-sm font-medium text-gray-800">[[ dish.name ]]</td>
+                <td data-col="half" class="px-4 py-3 text-sm text-gray-600">[[ dish.restaurant_half_price && dish.restaurant_half_price != 0 ? '₹' + dish.restaurant_half_price : '—' ]]</td>
+                <td data-col="full" class="px-4 py-3 text-sm text-gray-600">[[ dish.restaurant_full_price && dish.restaurant_full_price != 0 ? '₹' + dish.restaurant_full_price : '—' ]]</td>
+                <td data-col="shalf" class="px-4 py-3 text-sm text-gray-600">[[ dish.swiggy_half_price && dish.swiggy_half_price != 0 ? '₹' + dish.swiggy_half_price : '—' ]]</td>
+                <td data-col="sfull" class="px-4 py-3 text-sm text-gray-600">[[ dish.swiggy_full_price && dish.swiggy_full_price != 0 ? '₹' + dish.swiggy_full_price : '—' ]]</td>
+                <td data-col="zhalf" class="px-4 py-3 text-sm text-gray-600">[[ dish.zomato_half_price && dish.zomato_half_price != 0 ? '₹' + dish.zomato_half_price : '—' ]]</td>
+                <td data-col="zfull" class="px-4 py-3 text-sm text-gray-600">[[ dish.zomato_full_price && dish.zomato_full_price != 0 ? '₹' + dish.zomato_full_price : '—' ]]</td>
+                {% if request.user|has_group:'OWNER' or request.user|has_group:'MANAGER' %}
+                <td data-col="actions" class="px-4 py-3 text-center">
+                  <div class="inline-flex items-center gap-1">
+                    <button type="button" class="px-2.5 py-1 rounded-lg text-xs font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 transition-colors" @click="openUpdateDishModal(dish)">Edit</button>
+                    <button type="button" class="px-2.5 py-1 rounded-lg text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 transition-colors" @click="deleteDish(dish.id)">Delete</button>
+                  </div>
+                </td>
+                {% else %}
+                <td data-col="actions" class="px-4 py-3 text-center text-gray-300">&mdash;</td>
+                {% endif %}
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script src="{% static 'assets/js/vue.min.js' %}"></script>
+<script src="{% static 'assets/js/currency.min.js' %}"></script>
+<script src="{% static 'assets/js/axios.js' %}"></script>
+<script src="{% static 'assets/js/menu.js' %}"></script>
+<script>
+  // Column toggle and filter logic
+  const COL_PREF_KEY = 'menu_col_prefs';
+
+  function saveColPrefs() {
+    const prefs = {};
+    document.querySelectorAll('.col-toggle').forEach(function(checkbox) {
+      prefs[checkbox.value] = checkbox.checked;
+    });
+    localStorage.setItem(COL_PREF_KEY, JSON.stringify(prefs));
+    const status = document.getElementById('save-status');
+    status.style.display = 'inline';
+    setTimeout(() => { status.style.display = 'none'; }, 1200);
+  }
+
+  function loadColPrefs() {
+    const prefs = JSON.parse(localStorage.getItem(COL_PREF_KEY) || '{}');
+    document.querySelectorAll('.col-toggle').forEach(function(checkbox) {
+      if (prefs.hasOwnProperty(checkbox.value)) {
+        checkbox.checked = prefs[checkbox.value];
+      }
+    });
+  }
+
+  function applyColPrefs() {
+    document.querySelectorAll('.col-toggle').forEach(function(checkbox) {
+      var col = checkbox.value;
+      var checked = checkbox.checked;
+      document.querySelectorAll('th[data-col="' + col + '"],td[data-col="' + col + '"]').forEach(function(el) {
+        el.style.display = checked ? '' : 'none';
+      });
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    loadColPrefs();
+    applyColPrefs();
+    document.querySelectorAll('.col-toggle').forEach(function(checkbox) {
+      checkbox.addEventListener('change', applyColPrefs);
+    });
+    document.getElementById('save-col-prefs').addEventListener('click', saveColPrefs);
+  });
+
+  function openAddDishModal() {
+    document.getElementById('addDishModal').style.display = 'flex';
+  }
+  function closeAddDishModal() {
+    document.getElementById('addDishModal').style.display = 'none';
+  }
+  function closeDeleteModal() {
+    document.getElementById('deleteModal').style.display = 'none';
+  }
+
+  function filterTable() {
+    const input = document.getElementById("myInput").value.toUpperCase();
+    const table = document.getElementById("myTable");
+    const tr = table.getElementsByTagName("tr");
+    function getShortCode(str) {
+      return str.split(/\s+/).map(w => w[0] ? w[0].toUpperCase() : '').join('');
+    }
+    for (let i = 1; i < tr.length; i++) {
+      const nameTd = tr[i].querySelector('td[data-col="name"]');
+      const idTd = tr[i].querySelector('td[data-col="id"]');
+      const nameText = nameTd?.innerText.toUpperCase() || '';
+      const idText = idTd?.innerText.toUpperCase() || '';
+      const shortCode = getShortCode(nameText);
+      const match = nameText.indexOf(input) > -1 || idText.indexOf(input) > -1 || shortCode.indexOf(input) > -1;
+      tr[i].style.display = match ? "" : "none";
+    }
+  }
+</script>
+{% endblock %}

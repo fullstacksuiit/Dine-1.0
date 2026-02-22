@@ -1,0 +1,29 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}DinePay{% endblock %}</title>
+  <link rel="shortcut icon" href="{% static 'assets/images/logo.png' %}">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: Arial, sans-serif;
+      font-size: 12px;
+      color: #000;
+      background: #fff;
+    }
+    @media print {
+      body { margin: 0; padding: 0; }
+      .no-print { display: none !important; }
+    }
+  </style>
+  {% block extra_css %}{% endblock %}
+  {% block inline_css %}{% endblock %}
+</head>
+<body>
+  {% block content %}{% endblock %}
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

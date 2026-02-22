@@ -1,0 +1,320 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}KOT History | DinePay{% endblock %}
+
+{% block breadcrumb %}
+<span class="breadcrumb-restaurant">{{ request.restaurant.display_name|default:request.restaurant.name|default:"DinePay" }}</span>
+<span class="breadcrumb-sep">/</span>
+<span class="breadcrumb-page">KOT History</span>
+{% endblock %}
+
+{% block inline_css %}
+<style>
+  @keyframes float { 0% { transform: translateY(0); } 100% { transform: translateY(-8px); } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-2">
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- Pending KOTs -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div class="px-5 py-4 border-b border-gray-100 flex items-center gap-3">
+        <div class="w-8 h-8 rounded-lg bg-yellow-50 flex items-center justify-center">
+          <i data-feather="clock" class="text-yellow-500" style="width:16px;height:16px;"></i>
+        </div>
+        <h2 class="text-base font-semibold text-gray-800">Pending</h2>
+      </div>
+      <div id="pending-kots-container" class="overflow-x-auto">
+        {% if pending_kots %}
+        <table class="w-full min-w-[480px]">
+          <thead>
+            <tr>
+              <th class="bg-gray-50/95 text-gray-500 text-xs font-semibold uppercase tracking-wider px-4 py-3 border-b border-gray-100 sticky top-0 z-[2] backdrop-blur-sm text-left">Time</th>
+              <th class="bg-gray-50/95 text-gray-500 text-xs font-semibold uppercase tracking-wider px-4 py-3 border-b border-gray-100 sticky top-0 z-[2] backdrop-blur-sm text-left">Table</th>
+              <th class="bg-gray-50/95 text-gray-500 text-xs font-semibold uppercase tracking-wider px-4 py-3 border-b border-gray-100 sticky top-0 z-[2] backdrop-blur-sm text-left">View</th>
+              <th class="bg-gray-50/95 text-gray-500 text-xs font-semibold uppercase tracking-wider px-4 py-3 border-b border-gray-100 sticky top-0 z-[2] backdrop-blur-sm text-left">Accept</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for kot in pending_kots %}
+            <tr class="hover:bg-primary-50 transition-colors">
+              <td class="px-4 py-3 text-sm text-gray-700 align-middle border-b border-gray-50">
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-yellow-50 text-yellow-700 mb-1">
+                  <i data-feather="clock" style="width:11px;height:11px;"></i> Pending
+                </span>
+                <div class="text-xs text-gray-500 mt-1">{{ kot.created_at|date:"d/m/Y" }} - {{ kot.created_at|time:"h:i A" }}</div>
+                <div class="text-xs text-gray-400 mt-0.5">
+                  <span class="kot-rel-time" data-time="{{ kot.created_at|date:'c' }}"></span>
+                </div>
+              </td>
+              <td class="px-4 py-3 text-sm text-gray-700 align-middle border-b border-gray-50 font-medium">{{ kot.bill.table_number }}</td>
+              <td class="px-4 py-3 text-sm text-gray-700 align-middle border-b border-gray-50">
+                <a href="{% url 'kot' kot.id %}" target="_blank" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 transition-colors">
+                  <i data-feather="eye" style="width:13px;height:13px;"></i> View
+                </a>
+              </td>
+              <td class="px-4 py-3 text-sm text-gray-700 align-middle border-b border-gray-50">
+                <button class="accept-kot inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-accent-400 hover:bg-accent-500 transition-colors shadow-sm" data-kot-id="{{ kot.id }}">
+                  <i data-feather="check" style="width:13px;height:13px;"></i> Accept
+                </button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="py-12 text-center">
+          <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gray-50 mb-3" style="animation: float 1.2s ease-in-out infinite alternate;">
+            <i data-feather="inbox" class="text-gray-300" style="width:24px;height:24px;"></i>
+          </div>
+          <p class="text-sm text-gray-400">No pending KOTs</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Accepted KOTs -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div class="px-5 py-4 border-b border-gray-100 flex items-center gap-3">
+        <div class="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center">
+          <i data-feather="check-circle" class="text-green-500" style="width:16px;height:16px;"></i>
+        </div>
+        <h2 class="text-base font-semibold text-gray-800">Accepted</h2>
+      </div>
+      <div id="accepted-kots-container" class="overflow-x-auto">
+        {% if kots %}
+        <table class="w-full min-w-[480px]">
+          <thead>
+            <tr>
+              <th class="bg-gray-50/95 text-gray-500 text-xs font-semibold uppercase tracking-wider px-4 py-3 border-b border-gray-100 sticky top-0 z-[2] backdrop-blur-sm text-left">Time</th>
+              <th class="bg-gray-50/95 text-gray-500 text-xs font-semibold uppercase tracking-wider px-4 py-3 border-b border-gray-100 sticky top-0 z-[2] backdrop-blur-sm text-left">Table</th>
+              <th class="bg-gray-50/95 text-gray-500 text-xs font-semibold uppercase tracking-wider px-4 py-3 border-b border-gray-100 sticky top-0 z-[2] backdrop-blur-sm text-left">View</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for kot in kots %}
+            <tr class="hover:bg-primary-50 transition-colors">
+              <td class="px-4 py-3 text-sm text-gray-700 align-middle border-b border-gray-50">
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-50 text-green-700 mb-1">
+                  <i data-feather="check-circle" style="width:11px;height:11px;"></i> Accepted
+                </span>
+                <div class="text-xs text-gray-500 mt-1">{{ kot.created_at|date:"d/m/Y" }} - {{ kot.created_at|time:"h:i A" }}</div>
+                <div class="text-xs text-gray-400 mt-0.5">
+                  <span class="kot-rel-time" data-time="{{ kot.created_at|date:'c' }}"></span>
+                </div>
+              </td>
+              <td class="px-4 py-3 text-sm text-gray-700 align-middle border-b border-gray-50 font-medium">{{ kot.bill.table_number }}</td>
+              <td class="px-4 py-3 text-sm text-gray-700 align-middle border-b border-gray-50">
+                <a href="{% url 'kot' kot.id %}" target="_blank" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 transition-colors">
+                  <i data-feather="eye" style="width:13px;height:13px;"></i> View
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="py-12 text-center">
+          <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gray-50 mb-3" style="animation: float 1.2s ease-in-out infinite alternate;">
+            <i data-feather="inbox" class="text-gray-300" style="width:24px;height:24px;"></i>
+          </div>
+          <p class="text-sm text-gray-400">No accepted KOTs yet</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.19.2/axios.js"></script>
+<script>
+  const BASE_URL = window.location.origin;
+  const KOT_VIEW_URL = BASE_URL + '/sale/kot/';
+  const TH_CLS = 'bg-gray-50 text-gray-500 text-xs font-semibold uppercase tracking-wider px-4 py-3 border-b border-gray-100 text-left';
+  const TD_CLS = 'px-4 py-3 text-sm text-gray-700 align-middle border-b border-gray-50';
+
+  function getCsrfToken() {
+    const match = document.cookie.split('; ').find(row => row.startsWith('csrftoken='));
+    return match ? match.split('=')[1] : '';
+  }
+
+  function formatDate(isoStr) {
+    const d = new Date(isoStr);
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    let hours = d.getHours();
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12 || 12;
+    return `${day}/${month}/${year} - ${hours}:${minutes} ${ampm}`;
+  }
+
+  function timeAgo(date) {
+    const now = new Date();
+    const then = new Date(date);
+    const seconds = Math.floor((now - then) / 1000);
+    if (seconds < 60) return 'just now';
+    const intervals = [
+      { label: 'year', seconds: 31536000 },
+      { label: 'month', seconds: 2592000 },
+      { label: 'day', seconds: 86400 },
+      { label: 'hour', seconds: 3600 },
+      { label: 'minute', seconds: 60 }
+    ];
+    for (const interval of intervals) {
+      const count = Math.floor(seconds / interval.seconds);
+      if (count >= 1) {
+        return count + ' ' + interval.label + (count > 1 ? 's' : '') + ' ago';
+      }
+    }
+    return 'just now';
+  }
+
+  function emptyState(message) {
+    return '<div class="py-12 text-center">' +
+      '<div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gray-50 mb-3" style="animation: float 1.2s ease-in-out infinite alternate;">' +
+        '<i data-feather="inbox" class="text-gray-300" style="width:24px;height:24px;"></i>' +
+      '</div>' +
+      '<p class="text-sm text-gray-400">' + message + '</p>' +
+    '</div>';
+  }
+
+  function buildPendingHTML(kots) {
+    if (!kots || kots.length === 0) return emptyState('No pending KOTs');
+    var rows = '';
+    for (var i = 0; i < kots.length; i++) {
+      var kot = kots[i];
+      var table = kot.bill ? (kot.bill.table_number || 'N/A') : 'N/A';
+      rows += '<tr class="hover:bg-primary-50 transition-colors">' +
+        '<td class="' + TD_CLS + '">' +
+          '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-yellow-50 text-yellow-700 mb-1">' +
+            '<i data-feather="clock" style="width:11px;height:11px;"></i> Pending' +
+          '</span>' +
+          '<div class="text-xs text-gray-500 mt-1">' + formatDate(kot.created_at) + '</div>' +
+          '<div class="text-xs text-gray-400 mt-0.5">' +
+            '<span class="kot-rel-time" data-time="' + kot.created_at + '">' + timeAgo(kot.created_at) + '</span>' +
+          '</div>' +
+        '</td>' +
+        '<td class="' + TD_CLS + ' font-medium">' + table + '</td>' +
+        '<td class="' + TD_CLS + '">' +
+          '<a href="' + KOT_VIEW_URL + kot.id + '" target="_blank" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 transition-colors">' +
+            '<i data-feather="eye" style="width:13px;height:13px;"></i> View' +
+          '</a>' +
+        '</td>' +
+        '<td class="' + TD_CLS + '">' +
+          '<button class="accept-kot inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-accent-400 hover:bg-accent-500 transition-colors shadow-sm" data-kot-id="' + kot.id + '">' +
+            '<i data-feather="check" style="width:13px;height:13px;"></i> Accept' +
+          '</button>' +
+        '</td>' +
+      '</tr>';
+    }
+    return '<table class="w-full min-w-[480px]">' +
+      '<thead><tr><th class="' + TH_CLS + '">Time</th><th class="' + TH_CLS + '">Table</th><th class="' + TH_CLS + '">View</th><th class="' + TH_CLS + '">Accept</th></tr></thead>' +
+      '<tbody>' + rows + '</tbody>' +
+    '</table>';
+  }
+
+  function buildAcceptedHTML(kots) {
+    if (!kots || kots.length === 0) return emptyState('No accepted KOTs yet');
+    var rows = '';
+    for (var i = 0; i < kots.length; i++) {
+      var kot = kots[i];
+      var table = kot.bill ? (kot.bill.table_number || 'N/A') : 'N/A';
+      rows += '<tr class="hover:bg-primary-50 transition-colors">' +
+        '<td class="' + TD_CLS + '">' +
+          '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-50 text-green-700 mb-1">' +
+            '<i data-feather="check-circle" style="width:11px;height:11px;"></i> Accepted' +
+          '</span>' +
+          '<div class="text-xs text-gray-500 mt-1">' + formatDate(kot.created_at) + '</div>' +
+          '<div class="text-xs text-gray-400 mt-0.5">' +
+            '<span class="kot-rel-time" data-time="' + kot.created_at + '">' + timeAgo(kot.created_at) + '</span>' +
+          '</div>' +
+        '</td>' +
+        '<td class="' + TD_CLS + ' font-medium">' + table + '</td>' +
+        '<td class="' + TD_CLS + '">' +
+          '<a href="' + KOT_VIEW_URL + kot.id + '" target="_blank" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 transition-colors">' +
+            '<i data-feather="eye" style="width:13px;height:13px;"></i> View' +
+          '</a>' +
+        '</td>' +
+      '</tr>';
+    }
+    return '<table class="w-full min-w-[480px]">' +
+      '<thead><tr><th class="' + TH_CLS + '">Time</th><th class="' + TH_CLS + '">Table</th><th class="' + TH_CLS + '">View</th></tr></thead>' +
+      '<tbody>' + rows + '</tbody>' +
+    '</table>';
+  }
+
+  function attachAcceptHandlers() {
+    document.querySelectorAll('.accept-kot').forEach(function(button) {
+      button.addEventListener('click', async function() {
+        var kotId = this.dataset.kotId;
+        var btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '<i data-feather="loader" style="width:13px;height:13px;"></i> Accepting...';
+        feather.replace();
+        try {
+          var response = await axios.patch(BASE_URL + '/sale/api/kots/' + kotId, { status: 'IN_PROGRESS' }, {
+            headers: { 'X-CSRFToken': getCsrfToken(), 'Content-Type': 'application/json' },
+            withCredentials: true
+          });
+          if (response.status === 200) {
+            refreshKots();
+          } else {
+            showToast('Failed to accept KOT. Please try again.', 'error');
+            btn.disabled = false;
+            btn.innerHTML = '<i data-feather="check" style="width:13px;height:13px;"></i> Accept';
+            feather.replace();
+          }
+        } catch (error) {
+          alert('Failed to accept KOT. Please try again.');
+          btn.disabled = false;
+          btn.innerHTML = '<i data-feather="check" style="width:13px;height:13px;"></i> Accept';
+          feather.replace();
+        }
+      });
+    });
+  }
+
+  async function refreshKots() {
+    try {
+      var response = await axios.get(BASE_URL + '/sale/api/kots/?filter=dine-in', {
+        headers: { 'X-CSRFToken': getCsrfToken() },
+        withCredentials: true
+      });
+      var data = response.data;
+      var pendingKots = data.pending_kots || [];
+      var acceptedKots = data.accepted_kots || [];
+
+      document.getElementById('pending-kots-container').innerHTML = buildPendingHTML(pendingKots);
+      document.getElementById('accepted-kots-container').innerHTML = buildAcceptedHTML(acceptedKots);
+
+      feather.replace();
+      attachAcceptHandlers();
+    } catch (error) {
+      console.error('Failed to refresh KOTs:', error);
+    }
+  }
+
+  function updateKotRelativeTimes() {
+    document.querySelectorAll('.kot-rel-time').forEach(function(el) {
+      el.textContent = timeAgo(el.getAttribute('data-time'));
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    feather.replace();
+    attachAcceptHandlers();
+    updateKotRelativeTimes();
+
+    // Poll for new KOTs every 10s — no full page reload
+    setInterval(refreshKots, 10000);
+    // Update relative times every 30s
+    setInterval(updateKotRelativeTimes, 30000);
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,127 @@
+{% extends "base_public.html" %}
+{% load static %}
+
+{% block title %}Login | DinePay - Restaurant POS & Billing Software{% endblock %}
+
+{% block meta %}
+<meta name="description" content="Login to DinePay, the modern restaurant POS and billing software." />
+<meta name="keywords" content="restaurant POS, login, restaurant billing software, SaaS, DinePay" />
+<meta name="robots" content="index, follow" />
+<link rel="canonical" href="https://dinepay.pythonanywhere.com/login/" />
+<meta property="og:title" content="Login | DinePay - Restaurant POS & Billing Software" />
+<meta property="og:description" content="Login to DinePay, the modern restaurant POS and billing software." />
+<meta property="og:type" content="website" />
+{% endblock %}
+
+{% block footer %}{% endblock %}
+
+{% block body %}
+<div class="min-h-screen bg-gradient-to-br from-primary-500 via-primary-400 to-purple-400 flex items-center justify-center p-4 relative">
+  <!-- Back to Home -->
+  <a href="/" class="absolute top-6 right-6 bg-white/90 backdrop-blur text-primary-500 font-semibold border border-white/50 rounded-xl px-5 py-2 text-sm shadow-sm hover:bg-white hover:shadow-md transition-all z-10">
+    Back to Home
+  </a>
+
+  <div class="w-full max-w-5xl flex flex-col lg:flex-row items-center gap-8 lg:gap-16">
+    <!-- Left: Features -->
+    <div class="flex-1 hidden lg:flex flex-col gap-6 max-w-md">
+      <div class="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
+        <h2 class="text-white font-bold text-lg mb-4 flex items-center gap-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+          DinePay Features
+        </h2>
+        <ul class="space-y-3">
+          <li class="flex items-center gap-3 text-white/90 text-sm">
+            <svg class="w-4 h-4 text-accent-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            Smart Order Management (Dine-in, Delivery, Takeaway)
+          </li>
+          <li class="flex items-center gap-3 text-white/90 text-sm">
+            <svg class="w-4 h-4 text-accent-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            Digital Menu & Real-time KOT with Notes
+          </li>
+          <li class="flex items-center gap-3 text-white/90 text-sm">
+            <svg class="w-4 h-4 text-accent-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            GST/CGST Billing & GSTR-1 Export
+          </li>
+          <li class="flex items-center gap-3 text-white/90 text-sm">
+            <svg class="w-4 h-4 text-accent-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            WhatsApp Bill Sharing with QR Payment
+          </li>
+          <li class="flex items-center gap-3 text-white/90 text-sm">
+            <svg class="w-4 h-4 text-accent-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            Advanced Reporting & Billing History
+          </li>
+          <li class="flex items-center gap-3 text-white/90 text-sm">
+            <svg class="w-4 h-4 text-accent-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            Secure Cloud Backup & Multi-device Access
+          </li>
+        </ul>
+      </div>
+      <div class="bg-white/10 backdrop-blur-sm rounded-2xl p-5 border border-white/10 text-white/80 text-sm">
+        <p class="font-semibold text-white mb-1">Need help?</p>
+        <p><a href="tel:+918093552723" class="text-white underline hover:text-accent-400 transition-colors">+91 80935 52723</a> &bull; <a href="mailto:incstrix@gmail.com" class="text-white underline hover:text-accent-400 transition-colors">incstrix@gmail.com</a></p>
+        <p class="mt-1">&copy; 2026 DinePay by <a href="http://strix.co.in" class="text-white underline hover:text-accent-400 transition-colors">Strix</a></p>
+      </div>
+    </div>
+
+    <!-- Right: Login Card -->
+    <div class="w-full max-w-sm">
+      <div class="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+        <!-- Accent bar -->
+        <div class="w-full h-1.5 bg-gradient-to-r from-primary-500 to-purple-400 rounded-full mb-6"></div>
+
+        <div class="text-center mb-6">
+          <h1 class="text-3xl font-black text-primary-500 tracking-wider">DinePay</h1>
+          <p class="text-gray-500 text-sm mt-1">Restaurant POS software made simple</p>
+        </div>
+
+        <form method="POST" autocomplete="off">
+          {% csrf_token %}
+
+          {% if form.errors or form.non_field_errors %}
+            <div class="bg-red-50 text-red-600 text-sm rounded-xl px-4 py-3 mb-4 border border-red-100">
+              {% for field in form %}
+                {% for error in field.errors %}
+                  <p>{{ error }}</p>
+                {% endfor %}
+              {% endfor %}
+              {% for error in form.non_field_errors %}
+                <p>{{ error }}</p>
+              {% endfor %}
+            </div>
+          {% endif %}
+
+          <div class="mb-4">
+            <label for="username" class="block text-sm font-semibold text-primary-600 mb-1.5">Username</label>
+            <input type="text" id="username" name="username" placeholder="Username" required
+              class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 transition-all outline-none" />
+          </div>
+
+          <div class="mb-5">
+            <label for="password" class="block text-sm font-semibold text-primary-600 mb-1.5">Password</label>
+            <input type="password" id="password" name="password" autocomplete="current-password" placeholder="Password" required
+              class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 transition-all outline-none" />
+          </div>
+
+          <button type="submit"
+            class="w-full bg-gradient-to-r from-primary-500 to-purple-400 hover:from-primary-700 hover:to-purple-600 text-white font-bold py-3 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md text-sm flex items-center justify-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M13.8 12H3"></path></svg>
+            Login
+          </button>
+        </form>
+
+        <p class="text-center text-sm text-gray-500 mt-5">
+          Don't have an account?
+          <a href="{% url 'home' %}" class="text-primary-500 font-semibold hover:text-primary-700 transition-colors">Sign up</a>
+        </p>
+      </div>
+
+      <!-- Mobile-only support info -->
+      <div class="lg:hidden text-center text-white/70 text-xs mt-6">
+        <p>Need help? <a href="tel:+918093552723" class="text-white underline">+91 80935 52723</a></p>
+        <p class="mt-1">&copy; 2026 DinePay by <a href="http://strix.co.in" class="text-white underline">Strix</a></p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

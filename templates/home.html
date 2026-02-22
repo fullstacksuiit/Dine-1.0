@@ -1,0 +1,115 @@
+{% extends "base_public.html" %}
+{% load static %}
+
+{% block title %}DinePay | Restaurant POS & Billing Software{% endblock %}
+
+{% block meta %}
+<meta name="description" content="DinePay is a modern restaurant POS and billing software. Manage orders, billing, team, and analytics with ease." />
+<meta name="keywords" content="restaurant POS, billing software, restaurant management, SaaS, DinePay" />
+<meta name="robots" content="index, follow" />
+<link rel="canonical" href="https://dinepay.pythonanywhere.com/" />
+<meta property="og:title" content="DinePay | Restaurant POS & Billing Software" />
+<meta property="og:description" content="Run your restaurant smarter, faster, and easier. Cloud-based POS, digital billing, team management, and more." />
+<meta property="og:type" content="website" />
+{% endblock %}
+
+{% block footer %}{% endblock %}
+
+{% block body %}
+<div class="min-h-screen bg-gradient-to-br from-primary-500 via-primary-400 to-purple-400 relative overflow-hidden">
+  <!-- Decorative shape -->
+  <div class="absolute -top-20 -left-20 w-80 h-80 bg-white/10 rounded-full blur-3xl"></div>
+  <div class="absolute bottom-0 right-0 w-96 h-96 bg-purple-300/10 rounded-full blur-3xl"></div>
+
+  <!-- Login button -->
+  <a href="{% url 'login' %}" class="absolute top-6 right-6 bg-white/90 backdrop-blur text-primary-500 font-semibold border border-white/50 rounded-xl px-5 py-2 text-sm shadow-sm hover:bg-white hover:shadow-md transition-all z-10">
+    Login
+  </a>
+
+  <!-- Hero Content -->
+  <div class="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-16 flex flex-col lg:flex-row items-center gap-8 lg:gap-16 min-h-screen">
+    <!-- Left: Copy -->
+    <div class="flex-1 text-center lg:text-left">
+      <h1 class="text-4xl lg:text-5xl font-black text-white leading-tight tracking-wide mb-2">
+        DinePay
+      </h1>
+      <p class="text-lg text-primary-100 font-medium mb-6">Restaurant POS & Billing Software</p>
+      <p class="text-xl text-white/90 mb-8 max-w-lg leading-relaxed">
+        <span class="font-bold text-white">Run your restaurant smarter, faster, and easier.</span><br>
+        Cloud-based POS, digital billing, team management, and more. Trusted by modern restaurants.
+      </p>
+
+      <!-- Feature badges -->
+      <div class="flex flex-wrap justify-center lg:justify-start gap-3 mb-8">
+        <span class="bg-white/15 backdrop-blur-sm text-white rounded-xl px-4 py-2 text-sm font-semibold flex items-center gap-2 border border-white/10">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+          Fast Billing
+        </span>
+        <span class="bg-white/15 backdrop-blur-sm text-white rounded-xl px-4 py-2 text-sm font-semibold flex items-center gap-2 border border-white/10">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 00-3-3.87"></path><path d="M16 3.13a4 4 0 010 7.75"></path></svg>
+          Team Management
+        </span>
+        <span class="bg-white/15 backdrop-blur-sm text-white rounded-xl px-4 py-2 text-sm font-semibold flex items-center gap-2 border border-white/10">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+          Analytics
+        </span>
+        <span class="bg-white/15 backdrop-blur-sm text-white rounded-xl px-4 py-2 text-sm font-semibold flex items-center gap-2 border border-white/10">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"></path></svg>
+          Cloud Backup
+        </span>
+      </div>
+
+      <button onclick="document.getElementById('signupForm').scrollIntoView({behavior:'smooth'})"
+        class="bg-accent-400 hover:bg-accent-500 text-white font-bold py-3.5 px-8 rounded-xl text-base shadow-lg hover:shadow-xl transition-all duration-200 inline-flex items-center gap-2">
+        Get Started Free
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+      </button>
+    </div>
+
+    <!-- Right: Signup Card -->
+    <div class="w-full max-w-sm flex-shrink-0">
+      <div class="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+        <h2 class="text-lg font-bold text-primary-500 mb-5 text-center flex items-center justify-center gap-2">
+          <svg class="w-5 h-5 text-accent-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg>
+          Create Your Free Account
+        </h2>
+
+        {% if error %}
+        <div class="bg-red-50 text-red-600 text-sm rounded-xl px-4 py-3 mb-4 border border-red-100 text-center font-semibold">
+          {{ error }}
+        </div>
+        {% endif %}
+
+        {% if success %}
+        <div class="bg-accent-50 text-accent-600 text-sm rounded-xl px-4 py-3 mb-4 border border-accent-100 text-center font-semibold">
+          Account created! Please <a href="{% url 'login' %}" class="underline font-bold">login</a> to continue.
+        </div>
+        {% endif %}
+
+        <form method="post" autocomplete="off" id="signupForm">
+          {% csrf_token %}
+          <div class="mb-4">
+            <label for="username" class="block text-sm font-semibold text-primary-600 mb-1.5">Username</label>
+            <input type="text" id="username" name="username" required placeholder="Choose a username"
+              class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 transition-all outline-none" />
+          </div>
+          <div class="mb-5">
+            <label for="password" class="block text-sm font-semibold text-primary-600 mb-1.5">Password</label>
+            <input type="password" id="password" name="password" required placeholder="Password"
+              class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 transition-all outline-none" />
+          </div>
+          <button type="submit"
+            class="w-full bg-gradient-to-r from-primary-500 to-purple-400 hover:from-primary-700 hover:to-purple-600 text-white font-bold py-3 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md text-sm">
+            Sign Up
+          </button>
+        </form>
+      </div>
+
+      <p class="text-center text-white/60 text-xs mt-4">
+        &copy; 2026 DinePay by <a href="http://strix.co.in" class="text-white/80 underline hover:text-white transition-colors">Strix</a>
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

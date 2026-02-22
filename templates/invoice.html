@@ -1,0 +1,317 @@
+{% extends "base_print.html" %}
+{% load static %}
+
+{% block title %}Invoice {{ bill.full_invoice_number }} | DinePay{% endblock %}
+
+{% block extra_css %}
+<link href="{% static 'assets/css/bill.css' %}" rel="stylesheet" />
+{% endblock %}
+
+{% block inline_css %}
+<style>
+  @page { margin: 0mm; }
+  body {
+    width: 70mm;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.2;
+  }
+  #invoice-POS {
+    padding: 2mm;
+    padding-left: 4mm;
+    width: 100%;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  th, td {
+    padding: 2px;
+    font-size: 12.5px;
+  }
+  hr {
+    border: 0;
+    border-top: 1px dashed #000;
+    margin: 2mm 0;
+  }
+  .bill-header {
+    text-align: center;
+    margin-bottom: 2px;
+  }
+  .bill-header h3 {
+    margin: 0;
+    font-size: 1.1em;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+  }
+  .bill-info {
+    font-weight: 900;
+    font-size: 12px;
+    line-height: 1.2;
+    margin-bottom: 2px;
+  }
+  .bill-table th {
+    border-bottom: 1px solid #000;
+    font-size: 12px;
+    font-weight: bold;
+    text-align: center;
+    padding-bottom: 2px;
+  }
+  .bill-table td {
+    font-size: 12px;
+    text-align: center;
+  }
+  .deleted-bill {
+    color: red;
+    font-weight: bold;
+    text-align: center;
+    padding-bottom: 4px;
+    font-size: 13px;
+  }
+  .summary-section {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-top: 6px;
+  }
+  .summary-qr {
+    text-align: center;
+    width: 45%;
+  }
+  .summary-qr img {
+    height: 90px;
+    width: 90px;
+  }
+  .summary-amounts {
+    text-align: right;
+    font-size: 11.5px;
+    font-weight: 900;
+    width: 55%;
+    float: right;
+  }
+  .summary-amounts p {
+    margin: 0 0 2px 0;
+    line-height: 1.3;
+  }
+  .footer-section {
+    text-align: center;
+    font-weight: 900;
+    font-size: 12px;
+    line-height: 1.0;
+    margin-top: 6px;
+  }
+
+  /* Toolbar (hidden on print) */
+  .invoice-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    padding: 10px;
+    background: #f9fafb;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+  }
+  .toolbar-btn {
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .toolbar-btn:hover { opacity: 0.85; }
+  .toolbar-input {
+    padding: 6px 10px;
+    font-size: 12px;
+    border-radius: 6px;
+    border: 1px solid #d1d5db;
+    width: 150px;
+    outline: none;
+  }
+  .toolbar-input:focus { border-color: #6c63ff; }
+
+  @media print {
+    .invoice-toolbar { display: none !important; }
+    body { background: #fff; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="invoice-POS">
+  <div class="bill-header">
+    <h3><u>{{ bill.restaurant.display_name }}</u></h3>
+    <div class="bill-info">
+      {{ bill.restaurant.full_address|default_if_none:''|linebreaksbr }}<br />
+      {% if bill.restaurant.contact %}Contact: {{ bill.restaurant.contact}}<br />{% endif %}
+      {% if bill.restaurant.gstin %}GSTIN: <u>{{ bill.restaurant.gstin }}</u><br />{% endif %}
+      {% if bill.restaurant.hsn_sac %}HSN/SAC: {{ bill.restaurant.hsn_sac }}{% endif %}
+    </div>
+    <hr />
+  </div>
+
+  <table style="font-weight: 900; font-size: 14px; margin-bottom: 8px; line-height: 1.2;">
+    <tr>
+      <td colspan="2" class="deleted-bill" {% if not bill.is_deleted %}hidden{% endif %}>
+        [DELETED BILL]
+      </td>
+    </tr>
+    <tr>
+      <td>&nbsp;&nbsp;&nbsp;Bill:{{ bill.full_invoice_number }}</td>
+      <td>Date: {{ bill.date| date:"d/m/Y" }}</td>
+    </tr>
+    <tr>
+      <td>&nbsp;&nbsp;&nbsp;Table:{% if bill.is_takeaway %}Takeaway{% else %}{{ bill.table_number }}{% endif %}</td>
+      <td>Time: {{ bill.time|time:"h:i A" }}</td>
+    </tr>
+    {% if bill.customer_name %}
+    <tr>
+      <td>&nbsp;&nbsp;&nbsp;Customer: {{ bill.customer_name }}</td>
+    </tr>
+    {% endif %}
+    {% if bill.customer_gstin %}
+    <tr>
+      <td colspan="2">&nbsp;&nbsp;&nbsp;GSTIN: {{ bill.customer_gstin }}</td>
+    </tr>
+    {% endif %}
+  </table>
+  <hr />
+
+  <div id="bot">
+    <div id="table">
+      <table class="bill-table" style="font-weight: 900; font-size: 14px; line-height: 1.2;">
+        <thead>
+          <tr>
+            <th style="width: 10%;"></th>
+            <th style="width: 40%; text-align: left;">Item</th>
+            <th style="width: 10%;">Qty</th>
+            <th style="width: 20%;">Rate</th>
+            <th style="width: 20%; text-align: right;">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for order in orders %}
+          <tr>
+            <td>{{ forloop.counter }}.</td>
+            <td style="text-align: left;">{{ order.dish_name|upper }}</td>
+            <td>{{ order.quantity }}({{ order.size|first|upper }})</td>
+            <td>{{ order.dish_price }}</td>
+            <td style="text-align: right;">{% widthratio order.dish_price 1 order.quantity %}.00</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <hr />
+
+      <div class="summary-section">
+        {% if qr %}
+        <div class="summary-qr">
+          <img src="data:image/png;base64,{{ qr }}" alt="QR" />
+        </div>
+        {% endif %}
+        <div class="summary-amounts" style="text-align: right; float: right; width: 100%;">
+          <p>Sub-Total: ₹ {{ bill.sub_total|floatformat:2 }}</p>
+          {% if bill.discount > 0 %}
+            <p>Discount: -₹ {{ bill.discount|floatformat:2 }}</p>
+            <hr>
+            <p>Gross: ₹ {{ bill.net|floatformat:2 }}</p>
+          {% endif %}
+          {% if bill.sgst > 0 or bill.cgst > 0 or bill.igst > 0 %}
+            {% if bill.sgst > 0 %}<p>SGST@2.5%: ₹ {{ bill.sgst|floatformat:2 }}</p>{% endif %}
+            {% if bill.cgst > 0 %}<p>CGST@2.5%: ₹ {{ bill.cgst|floatformat:2 }}</p>{% endif %}
+            {% if bill.igst > 0 %}<p>IGST@5%: ₹ {{ bill.igst|floatformat:2 }}</p>{% endif %}
+          {% endif %}
+          {% if bill.delivery_charge > 0 %}
+            <p>Delivery Fee: ₹ {{ bill.delivery_charge|floatformat:2 }}</p>
+          {% endif %}
+          {% if bill.packaging_charge > 0 %}
+            <p>Pkg Fee: ₹ {{ bill.packaging_charge|floatformat:2 }}</p>
+          {% endif %}
+          <hr>
+          <p>Grand Total: ₹ {{ bill.amount|floatformat:2 }}</p>
+        </div>
+      </div>
+      <hr>
+
+      <div class="footer-section">
+        <p>Thank you for dining with us!<br>Have a Nice Day</p>
+        <p><strong>DinePay | strix.co.in</strong></p>
+      </div>
+
+      <!-- Toolbar (hidden on print) -->
+      <div class="invoice-toolbar no-print">
+        <button type="button" onclick="window.print()" class="toolbar-btn" style="background:#6c63ff;color:#fff;">Print</button>
+        <button type="button" id="pdfBtn" class="toolbar-btn" style="background:#3b82f6;color:#fff;">Save PDF</button>
+        <button type="button" id="whatsappBtn" class="toolbar-btn" style="background:#25D366;color:#fff;">WhatsApp</button>
+        <input type="tel" id="whatsappNumber" placeholder="WhatsApp number" value="91{% if bill.contact %}{{ bill.contact }}{% endif %}" class="toolbar-input" maxlength="12" pattern="[0-9]*" title="Enter WhatsApp number" />
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script>
+  document.getElementById('pdfBtn').onclick = function() {
+    var element = document.getElementById('invoice-POS');
+    var opt = {
+      margin: 0.2,
+      filename: 'Bill_{{ bill.full_invoice_number }}.pdf',
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2 },
+      jsPDF: { unit: 'in', format: 'a5', orientation: 'portrait' }
+    };
+    html2pdf().set(opt).from(element).save();
+  };
+
+  document.getElementById('whatsappBtn').onclick = function() {
+    var number = document.getElementById('whatsappNumber').value.trim();
+    if (/^\d{10}$/.test(number)) {
+      number = '91' + number;
+    }
+    if (!/^91\d{10}$/.test(number)) {
+      alert('Please enter a valid 10-digit Indian mobile number or a full WhatsApp number with country code.');
+      document.getElementById('whatsappNumber').focus();
+      return;
+    }
+    var billText = `*{{ bill.restaurant.display_name }}*\n` +
+      `Address: {{ bill.restaurant.full_address|default_if_none:''|linebreaksbr|striptags }}\n` +
+      `{% if bill.restaurant.contact %}Contact: {{ bill.restaurant.contact }}\n{% endif %}` +
+      `{% if bill.restaurant.gstin %}GSTIN: {{ bill.restaurant.gstin }}\n{% endif %}` +
+      `{% if bill.restaurant.hsn_sac %}HSN/SAC: {{ bill.restaurant.hsn_sac }}\n{% endif %}` +
+      `-----------------------------\n` +
+      `Bill: {{ bill.full_invoice_number }}\n` +
+      `Date: {{ bill.date|date:'d/m/Y' }}  Time: {{ bill.time|time:'h:i A' }}\n` +
+      `Table: {{ bill.table_number }}\n` +
+      `Customer: {% if bill.customer_name %}{{ bill.customer_name }}{% else %}-{% endif %}\n` +
+      `{% if bill.customer_gstin %}Customer GSTIN: {{ bill.customer_gstin }}\n{% endif %}` +
+      `-----------------------------\n` +
+      `{% for order in orders %}{{ forloop.counter }}. {{ order.dish_name }} ({{ order.size|first|upper }}) x{{ order.quantity }} = ₹{% widthratio order.dish_price 1 order.quantity %}\n{% endfor %}` +
+      `-----------------------------\n` +
+      `Sub Total: ₹{{ bill.sub_total|floatformat:2 }}\n` +
+      `{% if bill.delivery_charge > 0 %}Delivery: ₹{{ bill.delivery_charge|floatformat:2 }}\n{% endif %}` +
+      `{% if bill.packaging_charge > 0 %}Packaging: ₹{{ bill.packaging_charge|floatformat:2 }}\n{% endif %}` +
+      `{% if bill.discount > 0 %}Discount: -₹{{ bill.discount|floatformat:2 }}\n{% endif %}` +
+      `Gross: ₹{{ bill.net|floatformat:2 }}\n` +
+      `{% if bill.sgst > 0 %}SGST: ₹{{ bill.sgst|floatformat:2 }}\n{% endif %}` +
+      `{% if bill.cgst > 0 %}CGST: ₹{{ bill.cgst|floatformat:2 }}\n{% endif %}` +
+      `{% if bill.igst > 0 %}IGST: ₹{{ bill.igst|floatformat:2 }}\n{% endif %}` +
+      `Net Amt: ₹{{ bill.amount|floatformat:2 }}\n` +
+      `-----------------------------\n` +
+      `Thank you for dining with us!\nDinePay | strix.co.in`;
+    var url = 'https://wa.me/' + number + '?text=' + encodeURIComponent(billText);
+    window.open(url, '_blank');
+  };
+
+  window.onload = function() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('print') === 'true') {
+      window.print();
+    }
+  };
+</script>
+{% endblock %}

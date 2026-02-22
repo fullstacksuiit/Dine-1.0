@@ -1,0 +1,1253 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}DinePay{% endblock %}
+{% block content_class %}p-0{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block inline_css %}
+<style>
+  [v-cloak] { display: none !important; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  @media print { body * { visibility: hidden; } .print-area, .print-area * { visibility: visible; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="dashboardApp" v-cloak class="min-h-[calc(100vh-3.5rem)]">
+
+  <!-- Sticky Tab Bar -->
+  <div class="sticky top-14 z-20 bg-white border-b border-gray-100 shadow-sm">
+    <div class="flex items-center gap-2 px-4 py-2 overflow-x-auto no-scrollbar">
+      <button @click="openNewOrderModal" class="shrink-0 px-4 py-2 rounded-lg text-sm font-bold bg-primary-500 text-white hover:bg-primary-600 shadow-sm transition-colors">
+        + New Order
+      </button>
+      <div class="h-5 w-px bg-gray-200 mx-1 shrink-0"></div>
+
+      <!-- Order Tabs -->
+      <button @click="setActiveTab('activeTables')" class="shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap" :class="activeTab === 'activeTables' ? 'bg-primary-500 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'" role="tab" :aria-selected="activeTab === 'activeTables'">
+        Tables <span v-if="activeTables && activeTables.length" class="ml-1 text-xs opacity-80">([[ activeTables.length ]])</span>
+      </button>
+      <button @click="setActiveTab('activeDineInOrders')" class="shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap" :class="activeTab === 'activeDineInOrders' ? 'bg-primary-500 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'" role="tab" :aria-selected="activeTab === 'activeDineInOrders'">
+        Dine-In <span v-if="pendingKots && acceptedKots && (pendingKots.length + acceptedKots.length) > 0" class="ml-1 text-xs opacity-80">([[ pendingKots.length + acceptedKots.length ]])</span>
+      </button>
+      <button @click="setActiveTab('activeTakeawayOrders')" class="shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap" :class="activeTab === 'activeTakeawayOrders' ? 'bg-primary-500 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'" role="tab" :aria-selected="activeTab === 'activeTakeawayOrders'">
+        Takeaway <span v-if="activeTakeawayOrders && activeTakeawayOrders.length > 0" class="ml-1 text-xs opacity-80">([[ activeTakeawayOrders.length ]])</span>
+      </button>
+
+      <div class="h-5 w-px bg-gray-200 mx-1 shrink-0"></div>
+
+      <!-- Management Tabs -->
+      <button @click="setActiveTab('menu')" class="shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap" :class="activeTab === 'menu' ? 'bg-primary-500 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'" role="tab" :aria-selected="activeTab === 'menu'">
+        Menu
+      </button>
+      <button @click="setActiveTab('billingHistory')" class="shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap" :class="activeTab === 'billingHistory' ? 'bg-primary-500 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'" role="tab" :aria-selected="activeTab === 'billingHistory'">
+        Billing
+      </button>
+      <button @click="setActiveTab('settings')" class="shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap" :class="activeTab === 'settings' ? 'bg-primary-500 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'" role="tab" :aria-selected="activeTab === 'settings'">
+        Settings
+      </button>
+
+      <div class="ml-auto shrink-0">
+        <button @click="refreshAllOrderTabs" class="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" title="Refresh all tabs">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab Content Area -->
+  <div class="p-4 lg:p-6">
+
+    <!-- ==================== TABLES TAB ==================== -->
+    <div v-if="activeTab === 'activeTables'">
+      <h2 class="text-lg font-bold text-gray-800 mb-4">Active Tables</h2>
+
+      <div v-if="activeTables.length > 0" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3">
+        <div v-for="table in activeTables" :key="table.id" class="bg-white rounded-xl border border-gray-200/80 shadow-sm hover:shadow-lg hover:border-primary-200 transition-all duration-200 cursor-pointer group overflow-hidden" @click="openTableModal(table)">
+          <!-- Accent Strip -->
+          <div class="h-1 bg-gradient-to-r from-primary-500 to-primary-400 group-hover:from-primary-600 group-hover:to-primary-500 transition-all"></div>
+          <!-- Table Header -->
+          <div class="px-3 pt-2.5 pb-2">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-1.5">
+                <!-- Normal view -->
+                <div v-if="tableEdit.editingTableId !== table.id" class="flex items-center gap-1.5">
+                  <span class="inline-flex items-center justify-center w-6 h-6 rounded-md bg-primary-50 text-primary-500 text-[10px] font-bold">#</span>
+                  <span class="text-lg font-bold text-gray-800 tracking-tight">[[ table.table_number ]]</span>
+                  <button @click.stop="startTableEdit(table)" class="opacity-0 group-hover:opacity-100 p-0.5 text-gray-400 hover:text-primary-500 transition-all" title="Edit table number">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  </button>
+                </div>
+                <!-- Edit view -->
+                <div v-else class="flex items-center gap-1.5 w-full" @click.stop>
+                  <span class="inline-flex items-center justify-center w-6 h-6 rounded-md bg-primary-50 text-primary-500 text-[10px] font-bold">#</span>
+                  <input type="text" v-model="tableEdit.newTableNumber" @keyup.enter="saveTableEdit" @keyup.escape="cancelTableEdit" class="w-14 px-1.5 py-0.5 text-sm font-bold border border-primary-400 rounded-md focus:ring-2 focus:ring-primary-200 outline-none" :disabled="tableEdit.isLoading" ref="tableEditInput">
+                  <button @click.stop="saveTableEdit" class="p-1 bg-emerald-500 text-white rounded text-xs" :disabled="tableEdit.isLoading" title="Save">[[ tableEdit.isLoading ? '...' : '&#10003;' ]]</button>
+                  <button @click.stop="cancelTableEdit" class="p-1 bg-red-500 text-white rounded text-xs" :disabled="tableEdit.isLoading" title="Cancel">&#10005;</button>
+                </div>
+              </div>
+            </div>
+            <div class="flex items-center gap-1 mt-1.5">
+              <svg class="w-3 h-3 text-gray-300 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <span class="text-[11px] text-gray-400 font-medium">[[ formatTableDuration(table.created_at) ]]</span>
+            </div>
+          </div>
+          <!-- Divider -->
+          <div class="border-t border-gray-100 mx-2.5"></div>
+          <!-- Action Buttons -->
+          <div class="flex gap-1.5 px-2.5 py-2">
+            <button @click.stop="addItemsToTable(table)" class="flex-1 h-8 rounded-lg bg-emerald-50 hover:bg-emerald-500 text-emerald-600 hover:text-white text-sm font-bold transition-colors" title="Add Items">
+              <svg class="w-4 h-4 mx-auto" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+            <button @click.stop="generateBillForTable(table)" class="flex-1 h-8 rounded-lg bg-primary-50 hover:bg-primary-500 text-primary-600 hover:text-white text-sm transition-colors" title="Generate Bill">
+              <svg class="w-4 h-4 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+            </button>
+            <button @click.stop="startMergeTable(table)" class="flex-1 h-8 rounded-lg bg-amber-50 hover:bg-amber-500 text-amber-600 hover:text-white text-sm transition-colors" title="Merge Table">
+              <svg class="w-3.5 h-3.5 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8 6L12 2L16 6"/><path d="M12 2V10"/><path d="M4 14L12 22L20 14"/></svg>
+            </button>
+            <button @click.stop="discardTableDirect(table)" class="flex-1 h-8 rounded-lg bg-red-50 hover:bg-red-500 text-red-500 hover:text-white text-sm transition-colors" title="Clear Table">
+              <svg class="w-3.5 h-3.5 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div v-else class="flex flex-col items-center justify-center py-20 text-gray-400">
+        <svg class="w-16 h-16 mb-4 opacity-30" fill="none" stroke="currentColor" stroke-width="1" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+        <div class="text-lg font-semibold text-gray-500">No Active Tables</div>
+        <div class="text-sm mt-1">Click "+ New Order" to create your first table</div>
+      </div>
+    </div>
+
+    <!-- ==================== DINE-IN KOTS TAB ==================== -->
+    <div v-if="activeTab === 'activeDineInOrders'">
+      <h2 class="text-lg font-bold text-gray-800 mb-4">Active Dine-In Orders</h2>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Pending KOTs -->
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h3 class="font-bold text-gray-700 flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-amber-400"></span> Pending
+            </h3>
+            <button v-if="pendingKots.length > 0" @click="acceptAllPendingKots" class="px-3 py-1.5 text-xs font-bold rounded-lg border-2 border-emerald-500 text-emerald-600 hover:bg-emerald-500 hover:text-white transition-colors uppercase tracking-wide">
+              Accept All ([[ pendingKots.length ]])
+            </button>
+          </div>
+          <div v-if="pendingKots.length > 0" class="divide-y divide-gray-50">
+            <div v-for="kot in pendingKots" :key="kot.id" class="flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition-colors">
+              <div>
+                <div class="text-sm text-gray-700">[[ formatKotDateTime(kot.created_at) ]]</div>
+                <div class="text-xs text-gray-400 font-semibold mt-0.5">[[ timeAgo(kot.created_at) ]]</div>
+              </div>
+              <div class="text-sm font-semibold text-gray-700">#[[ kot.bill?.table_number || 'N/A' ]]</div>
+              <div class="flex gap-2">
+                <button @click="viewKot(kot.id)" class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-primary-300 text-primary-600 hover:bg-primary-50 transition-colors">View</button>
+                <button @click="acceptKot(kot.id)" class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-emerald-300 text-emerald-600 hover:bg-emerald-50 transition-colors">Accept</button>
+              </div>
+            </div>
+          </div>
+          <div v-else class="flex flex-col items-center py-12 text-gray-400">
+            <svg class="w-10 h-10 mb-3 opacity-30" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+            <div class="text-sm font-semibold">No pending KOTs</div>
+          </div>
+        </div>
+
+        <!-- Accepted KOTs -->
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div class="px-5 py-4 border-b border-gray-100">
+            <h3 class="font-bold text-gray-700 flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-emerald-400"></span> Accepted
+            </h3>
+          </div>
+          <div v-if="acceptedKots.length > 0" class="divide-y divide-gray-50">
+            <div v-for="kot in acceptedKots" :key="kot.id" class="flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition-colors">
+              <div>
+                <div class="text-sm text-gray-700">[[ formatKotDateTime(kot.created_at) ]]</div>
+                <div class="text-xs text-gray-400 font-semibold mt-0.5">[[ timeAgo(kot.created_at) ]]</div>
+              </div>
+              <div class="text-sm font-semibold text-gray-700">#[[ kot.bill?.table_number || 'N/A' ]]</div>
+              <div>
+                <button @click="viewKot(kot.id)" class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-primary-300 text-primary-600 hover:bg-primary-50 transition-colors">View</button>
+              </div>
+            </div>
+          </div>
+          <div v-else class="flex flex-col items-center py-12 text-gray-400">
+            <svg class="w-10 h-10 mb-3 opacity-30" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+            <div class="text-sm font-semibold">No accepted KOTs yet</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== TAKEAWAY TAB ==================== -->
+    <div v-if="activeTab === 'activeTakeawayOrders'">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-bold text-gray-800">Active Takeaway Orders</h2>
+        <button v-if="activeTakeawayOrders.length > 0" @click="completeAllTakeawayOrders" class="px-3 py-1.5 text-xs font-bold rounded-lg border-2 border-emerald-500 text-emerald-600 hover:bg-emerald-500 hover:text-white transition-colors uppercase tracking-wide">
+          Complete All ([[ activeTakeawayOrders.length ]])
+        </button>
+      </div>
+
+      <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div v-if="activeTakeawayOrders.length > 0" class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th class="px-5 py-3 text-left font-semibold text-gray-600">#</th>
+                <th class="px-5 py-3 text-left font-semibold text-gray-600">Time</th>
+                <th class="px-5 py-3 text-left font-semibold text-gray-600">Status</th>
+                <th class="px-5 py-3 text-left font-semibold text-gray-600">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-50">
+              <tr v-for="order in activeTakeawayOrders" :key="order.id" class="hover:bg-gray-50 transition-colors">
+                <td class="px-5 py-3 font-semibold text-gray-700">[[ order.bill?.invoice_number || order.id ]]</td>
+                <td class="px-5 py-3">
+                  <div class="text-gray-700">[[ formatKotDateTime(order.time || order.created_at) ]]</div>
+                  <div class="text-xs text-gray-400 font-semibold">[[ timeAgo(order.time || order.created_at) ]]</div>
+                </td>
+                <td class="px-5 py-3">
+                  <select v-model="order.status" @change="updateTakeawayOrderStatus(order.id, $event.target.value)" class="px-3 py-1.5 text-sm font-semibold border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none">
+                    <option value="PENDING">Pending</option>
+                    <option value="IN_PROGRESS">In Progress</option>
+                    <option value="READY">Ready</option>
+                    <option value="COMPLETED">Completed</option>
+                  </select>
+                </td>
+                <td class="px-5 py-3">
+                  <button @click="viewTakeawayOrder(order.id)" class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-primary-300 text-primary-600 hover:bg-primary-50 transition-colors">View</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-else class="flex flex-col items-center py-16 text-gray-400">
+          <svg class="w-12 h-12 mb-3 opacity-30" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
+          <div class="text-sm font-semibold">No active takeaway orders</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== MENU TAB ==================== -->
+    <div v-if="activeTab === 'menu'">
+      <h2 class="text-lg font-bold text-gray-800 mb-4">Menu Management</h2>
+
+      <!-- Action Bar -->
+      <div class="flex flex-wrap gap-3 items-center bg-white rounded-xl border border-gray-200 p-4 mb-4 shadow-sm">
+        <div class="flex-1 min-w-[200px]">
+          <input id="menuSearchInput" type="text" placeholder="Search dishes..." @input="filterMenuTable" autocomplete="off" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none">
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button @click="openAddDishModal" class="px-4 py-2 rounded-lg text-sm font-semibold bg-primary-500 text-white hover:bg-primary-600 transition-colors">+ Add Dish</button>
+          <button @click="viewPublicMenu" class="px-4 py-2 rounded-lg text-sm font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors">View Menu</button>
+          <button @click="openCourseOrderModal" class="px-4 py-2 rounded-lg text-sm font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors">Reorder</button>
+          <button @click="downloadPublicMenuQR" class="px-4 py-2 rounded-lg text-sm font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors">QR Code</button>
+          <button @click="exportMenu" class="px-4 py-2 rounded-lg text-sm font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors">Export</button>
+          <label class="px-4 py-2 rounded-lg text-sm font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors cursor-pointer">
+            Import
+            <input type="file" ref="menuImportFile" @change="importMenu" accept=".xlsx" class="hidden">
+          </label>
+        </div>
+      </div>
+
+      <!-- Column Controls -->
+      <div class="bg-white rounded-xl border border-gray-200 p-4 mb-4 shadow-sm">
+        <div class="flex flex-wrap items-center gap-4">
+          <span class="text-sm font-semibold text-gray-600">Show Columns:</span>
+          <div class="flex flex-wrap gap-3">
+            <label class="flex items-center gap-1.5 text-sm text-gray-600"><input type="checkbox" class="menu-col-toggle accent-primary-500" value="name" checked> Name</label>
+            <label class="flex items-center gap-1.5 text-sm text-gray-600"><input type="checkbox" class="menu-col-toggle accent-primary-500" value="half" checked> Half</label>
+            <label class="flex items-center gap-1.5 text-sm text-gray-600"><input type="checkbox" class="menu-col-toggle accent-primary-500" value="full" checked> Full</label>
+            <label class="flex items-center gap-1.5 text-sm text-gray-600"><input type="checkbox" class="menu-col-toggle accent-primary-500" value="shalf" checked> S-Half</label>
+            <label class="flex items-center gap-1.5 text-sm text-gray-600"><input type="checkbox" class="menu-col-toggle accent-primary-500" value="sfull" checked> S-Full</label>
+            <label class="flex items-center gap-1.5 text-sm text-gray-600"><input type="checkbox" class="menu-col-toggle accent-primary-500" value="zhalf" checked> Z-Half</label>
+            <label class="flex items-center gap-1.5 text-sm text-gray-600"><input type="checkbox" class="menu-col-toggle accent-primary-500" value="zfull" checked> Z-Full</label>
+          </div>
+          <button @click="saveMenuColumnPrefs" class="ml-auto px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">Save Preferences</button>
+          <span v-if="menuColumnSaveStatus" class="text-xs font-semibold text-emerald-500">Saved</span>
+        </div>
+      </div>
+
+      <!-- Menu Table -->
+      <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+          <table id="menuTable" class="menu-table w-full text-sm">
+            <thead class="bg-primary-500 text-white">
+              <tr>
+                <th data-col="name" class="px-4 py-3 text-left font-semibold min-w-[200px]">Dish Name</th>
+                <th data-col="half" class="px-4 py-3 text-center font-semibold min-w-[100px]">Half (&#8377;)</th>
+                <th data-col="full" class="px-4 py-3 text-center font-semibold min-w-[100px]">Full (&#8377;)</th>
+                <th data-col="shalf" class="px-4 py-3 text-center font-semibold min-w-[110px]">S-Half (&#8377;)</th>
+                <th data-col="sfull" class="px-4 py-3 text-center font-semibold min-w-[110px]">S-Full (&#8377;)</th>
+                <th data-col="zhalf" class="px-4 py-3 text-center font-semibold min-w-[110px]">Z-Half (&#8377;)</th>
+                <th data-col="zfull" class="px-4 py-3 text-center font-semibold min-w-[110px]">Z-Full (&#8377;)</th>
+                <th data-col="actions" class="px-4 py-3 text-center font-semibold min-w-[100px]">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template v-for="(dishes, courseName) in groupedDishes" :key="courseName">
+                <tr class="bg-gray-50 border-t-2 border-gray-200">
+                  <td colspan="8" class="px-4 py-3 font-bold text-gray-700">[[ courseName ]] <span class="text-gray-400 font-normal">([[ dishes.length ]])</span></td>
+                </tr>
+                <tr v-for="dish in dishes" :key="dish.id" class="border-b border-gray-100 hover:bg-primary-50/30 transition-colors">
+                  <td data-col="name" class="px-4 py-3 font-medium text-gray-800">[[ dish.name ]]</td>
+                  <td data-col="half" class="px-4 py-3 text-center font-semibold text-gray-700">[[ formatCurrency(dish.restaurant_half_price || 0) ]]</td>
+                  <td data-col="full" class="px-4 py-3 text-center font-semibold text-gray-700">[[ formatCurrency(dish.restaurant_full_price || 0) ]]</td>
+                  <td data-col="shalf" class="px-4 py-3 text-center font-semibold text-gray-700">[[ formatCurrency(dish.swiggy_half_price || 0) ]]</td>
+                  <td data-col="sfull" class="px-4 py-3 text-center font-semibold text-gray-700">[[ formatCurrency(dish.swiggy_full_price || 0) ]]</td>
+                  <td data-col="zhalf" class="px-4 py-3 text-center font-semibold text-gray-700">[[ formatCurrency(dish.zomato_half_price || 0) ]]</td>
+                  <td data-col="zfull" class="px-4 py-3 text-center font-semibold text-gray-700">[[ formatCurrency(dish.zomato_full_price || 0) ]]</td>
+                  <td data-col="actions" class="px-4 py-3 text-center">
+                    <div class="flex gap-1.5 justify-center">
+                      <button @click="openUpdateDishModal(dish)" class="p-1.5 rounded border border-primary-300 text-primary-500 hover:bg-primary-50 transition-colors" title="Edit">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      </button>
+                      <button @click="deleteDish(dish.id)" class="p-1.5 rounded border border-red-300 text-red-500 hover:bg-red-50 transition-colors" title="Delete">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </template>
+              <tr v-if="Object.keys(groupedDishes).length === 0">
+                <td colspan="8" class="px-4 py-16 text-center text-gray-400">
+                  <div class="text-3xl mb-3 opacity-40">&#128203;</div>
+                  <div class="font-semibold">No dishes found</div>
+                  <div class="text-sm mt-1">Add your first dish to get started</div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== BILLING HISTORY TAB ==================== -->
+    <div v-if="activeTab === 'billingHistory'">
+      <h2 class="text-lg font-bold text-gray-800 mb-4">Billing History</h2>
+
+      <!-- Filters -->
+      <div class="bg-white rounded-xl border border-gray-200 p-4 mb-4 shadow-sm">
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-3">
+          <div>
+            <label class="block text-xs font-semibold text-gray-500 mb-1">Quick Range</label>
+            <select v-model="billingFilter.quickRange" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none" @change="onQuickRangeChange">
+              <option value="today">Today</option>
+              <option value="yesterday">Yesterday</option>
+              <option value="last7">Last 7 Days</option>
+              <option value="last30">Last 30 Days</option>
+              <option value="this_month">This Month</option>
+              <option value="last_month">Last Month</option>
+              <option value="last_year">Last 1 Year</option>
+              <option value="current_fiscal_year">Current Fiscal Year</option>
+              <option value="previous_fiscal_year">Previous Fiscal Year</option>
+              <option value="custom">Custom Range</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-gray-500 mb-1">From</label>
+            <input type="date" v-model="billingFilter.fromDate" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none disabled:bg-gray-100 disabled:text-gray-400" :disabled="billingFilter.quickRange !== 'custom'" @change="loadBillingHistory">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-gray-500 mb-1">To</label>
+            <input type="date" v-model="billingFilter.toDate" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none disabled:bg-gray-100 disabled:text-gray-400" :disabled="billingFilter.quickRange !== 'custom'" @change="loadBillingHistory">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-gray-500 mb-1">Order Type</label>
+            <select v-model="billingFilter.orderType" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none" @change="loadBillingHistory">
+              <option value="ALL">ALL</option>
+              <option value="RESTAURANT">RESTAURANT</option>
+              <option value="SWIGGY">SWIGGY</option>
+              <option value="ZOMATO">ZOMATO</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-gray-500 mb-1">Status</label>
+            <select v-model="billingFilter.paymentStatus" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none" @change="loadBillingHistory">
+              <option value="ALL">ALL</option>
+              <option value="UNPAID">Unpaid</option>
+              <option value="PAID">Paid</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-gray-500 mb-1">Search</label>
+            <input type="text" v-model="billingSearchQuery" placeholder="Invoice, table, customer..." class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none" @input="filterBillingHistory">
+          </div>
+        </div>
+
+        <!-- Summary & Reports -->
+        <div class="flex flex-wrap items-center gap-4 pt-3 border-t border-gray-100">
+          <div v-if="billingSummary" class="flex flex-wrap gap-4 text-sm">
+            <span class="text-gray-500">Bills: <strong class="text-gray-800">[[ billingSummary.count || 0 ]]</strong></span>
+            <span class="text-gray-500">Total: <strong class="text-gray-800">&#8377;[[ formatCurrency(billingSummary.total_sale || 0) ]]</strong></span>
+            <span class="text-gray-500">Avg: <strong class="text-gray-800">&#8377;[[ formatCurrency(billingSummary.avg || 0) ]]</strong></span>
+            <span v-if="billingSummary.unpaid_count > 0" class="text-red-500">Unpaid: <strong>[[ billingSummary.unpaid_count ]]</strong> (&#8377;[[ formatCurrency(billingSummary.unpaid_total || 0) ]])</span>
+          </div>
+          <div class="flex gap-2 ml-auto">
+            <button @click="downloadReport('BILL')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary-50 text-primary-600 hover:bg-primary-100 transition-colors" :disabled="loadingBillingHistory">Bills Report</button>
+            <button @click="downloadReport('DISH')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors" :disabled="loadingBillingHistory">Dishes Report</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Column Visibility -->
+      <div class="flex flex-wrap items-center gap-3 mb-4 text-sm">
+        <span class="font-semibold text-gray-500">Columns:</span>
+        <label class="flex items-center gap-1 text-gray-600"><input type="checkbox" v-model="billingColumns.invoice" @change="saveBillingColumnPrefs" class="accent-primary-500"> Invoice</label>
+        <label class="flex items-center gap-1 text-gray-600"><input type="checkbox" v-model="billingColumns.datetime" @change="saveBillingColumnPrefs" class="accent-primary-500"> Date</label>
+        <label class="flex items-center gap-1 text-gray-600"><input type="checkbox" v-model="billingColumns.subtotal" @change="saveBillingColumnPrefs" class="accent-primary-500"> Subtotal</label>
+        <label class="flex items-center gap-1 text-gray-600"><input type="checkbox" v-model="billingColumns.discount" @change="saveBillingColumnPrefs" class="accent-primary-500"> Discount</label>
+        <label class="flex items-center gap-1 text-gray-600"><input type="checkbox" v-model="billingColumns.total" @change="saveBillingColumnPrefs" class="accent-primary-500"> Total</label>
+        <label class="flex items-center gap-1 text-gray-600"><input type="checkbox" v-model="billingColumns.status" @change="saveBillingColumnPrefs" class="accent-primary-500"> Status</label>
+        <label class="flex items-center gap-1 text-gray-600"><input type="checkbox" v-model="billingColumns.actions" @change="saveBillingColumnPrefs" class="accent-primary-500"> Actions</label>
+      </div>
+
+      <!-- Table -->
+      <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div v-if="loadingBillingHistory" class="flex flex-col items-center py-16 text-gray-400">
+          <div class="w-8 h-8 border-3 border-primary-200 border-t-primary-500 rounded-full animate-spin mb-3"></div>
+          <div class="text-sm">Loading billing history...</div>
+        </div>
+        <div v-else-if="filteredBillingHistory.length === 0" class="flex flex-col items-center py-16 text-gray-400">
+          <div class="text-3xl mb-3 opacity-40">&#128202;</div>
+          <div class="font-semibold">No billing records found</div>
+          <div class="text-sm mt-1">Try adjusting your filters</div>
+        </div>
+        <div v-else class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th v-if="billingColumns.invoice" @click="sortBillingHistory('invoice')" class="px-4 py-3 text-left font-semibold text-gray-600 cursor-pointer hover:text-gray-800">Invoice <span class="text-xs" :class="getSortClass('invoice')">&#8597;</span></th>
+                <th v-if="billingColumns.datetime" class="px-4 py-3 text-left font-semibold text-gray-600">Date & Time</th>
+                <th v-if="billingColumns.subtotal" @click="sortBillingHistory('subtotal')" class="px-4 py-3 text-right font-semibold text-gray-600 cursor-pointer hover:text-gray-800">Subtotal <span class="text-xs" :class="getSortClass('subtotal')">&#8597;</span></th>
+                <th v-if="billingColumns.discount" class="px-4 py-3 text-right font-semibold text-gray-600">Discount</th>
+                <th v-if="billingColumns.total" @click="sortBillingHistory('total')" class="px-4 py-3 text-right font-semibold text-gray-600 cursor-pointer hover:text-gray-800">Total <span class="text-xs" :class="getSortClass('total')">&#8597;</span></th>
+                <th v-if="billingColumns.status" class="px-4 py-3 text-left font-semibold text-gray-600">Status</th>
+                <th v-if="billingColumns.actions" class="px-4 py-3 text-center font-semibold text-gray-600">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              <tr v-for="bill in paginatedBillingHistory" :key="bill.id" class="hover:bg-gray-50 transition-colors cursor-pointer" :class="{ 'opacity-50 line-through': bill.is_deleted }" @click="selectBill(bill)">
+                <td v-if="billingColumns.invoice" class="px-4 py-3">
+                  <div class="font-semibold text-gray-800">[[ bill.full_invoice_number || bill.invoice_number ]]</div>
+                  <span v-if="bill.is_takeaway" class="inline-block mt-0.5 px-1.5 py-0.5 text-[10px] font-bold rounded bg-amber-100 text-amber-700">TAKEAWAY</span>
+                  <span v-else class="inline-block mt-0.5 px-1.5 py-0.5 text-[10px] font-bold rounded bg-primary-100 text-primary-700">Table #[[ bill.table_number ]]</span>
+                  <span v-if="bill.is_edited" class="inline-block mt-0.5 ml-1 px-1.5 py-0.5 text-[10px] font-bold rounded bg-blue-100 text-blue-700">EDITED</span>
+                </td>
+                <td v-if="billingColumns.datetime" class="px-4 py-3">
+                  <div class="text-gray-700">[[ formatDate(bill.date || bill.created_at) ]]</div>
+                  <div class="text-xs text-gray-400">[[ formatTime(bill.time || bill.created_at) ]]</div>
+                </td>
+                <td v-if="billingColumns.subtotal" class="px-4 py-3 text-right font-medium text-gray-700">&#8377;[[ formatCurrency(bill.sub_total || bill.subtotal) ]]</td>
+                <td v-if="billingColumns.discount" class="px-4 py-3 text-right font-medium text-gray-700">&#8377;[[ formatCurrency(bill.discount) ]]</td>
+                <td v-if="billingColumns.total" class="px-4 py-3 text-right font-bold text-gray-800">&#8377;[[ formatCurrency(bill.amount || bill.total) ]]</td>
+                <td v-if="billingColumns.status" class="px-4 py-3" @click.stop>
+                  <template v-if="bill.payment_status === 'PAID'">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700">[[ bill.payment_type ]]</span>
+                  </template>
+                  <template v-else>
+                    <select @change="settleBill(bill.id, $event.target.value); $event.target.value = ''" class="px-2 py-1 text-xs font-semibold border border-red-300 rounded-lg bg-red-50 text-red-700 focus:ring-2 focus:ring-red-200 outline-none">
+                      <option value="" selected>UNPAID</option>
+                      <option value="CASH">Settle - CASH</option>
+                      <option value="UPI">Settle - UPI</option>
+                      <option value="CARD">Settle - CARD</option>
+                      <option value="CREDIT">Settle - CREDIT</option>
+                    </select>
+                  </template>
+                </td>
+                <td v-if="billingColumns.actions" class="px-4 py-3 text-center" @click.stop>
+                  <div class="flex gap-1 justify-center">
+                    <button @click.stop="viewBillInvoice(bill)" class="p-1.5 rounded border border-primary-300 text-primary-500 hover:bg-primary-50 transition-colors" title="View">
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    </button>
+                    <button @click.stop="editBill(bill)" class="p-1.5 rounded border border-gray-300 text-gray-500 hover:bg-gray-50 transition-colors" title="Edit">
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    </button>
+                    <button @click.stop="deleteBill(bill)" class="p-1.5 rounded border border-red-300 text-red-500 hover:bg-red-50 transition-colors" title="Delete">
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <!-- Pagination -->
+        <div v-if="billingPagination.totalPages > 1" class="flex items-center justify-between px-4 py-3 border-t border-gray-100">
+          <button @click="changeBillingPage(billingPagination.currentPage - 1)" :disabled="billingPagination.currentPage === 1" class="px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">Previous</button>
+          <span class="text-sm text-gray-500">Page [[ billingPagination.currentPage ]] of [[ billingPagination.totalPages ]] ([[ billingPagination.totalRecords ]] total)</span>
+          <button @click="changeBillingPage(billingPagination.currentPage + 1)" :disabled="billingPagination.currentPage === billingPagination.totalPages" class="px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">Next</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== SETTINGS TAB ==================== -->
+    <div v-if="activeTab === 'settings'">
+      <h2 class="text-lg font-bold text-gray-800 mb-4">Settings & Team</h2>
+
+      <!-- Settings Sub-tabs -->
+      <div class="flex gap-2 mb-6">
+        <button @click="activeSettingsTab = 'restaurant'" class="px-5 py-2.5 rounded-lg text-sm font-semibold border-2 transition-colors" :class="activeSettingsTab === 'restaurant' ? 'border-primary-500 bg-primary-500 text-white' : 'border-gray-300 text-gray-600 hover:border-primary-300 hover:text-primary-600'">Restaurant</button>
+        <button @click="activeSettingsTab = 'team'" class="px-5 py-2.5 rounded-lg text-sm font-semibold border-2 transition-colors" :class="activeSettingsTab === 'team' ? 'border-primary-500 bg-primary-500 text-white' : 'border-gray-300 text-gray-600 hover:border-primary-300 hover:text-primary-600'">Team</button>
+      </div>
+
+      <!-- Restaurant Settings -->
+      <div v-if="activeSettingsTab === 'restaurant'" class="bg-white rounded-xl border border-gray-200 p-6 shadow-sm max-w-2xl">
+        <h3 class="text-base font-bold text-gray-700 mb-5">Restaurant Information</h3>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-semibold text-gray-600 mb-1">Restaurant Name</label>
+            <input type="text" v-model="restaurantSettings.name" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none" placeholder="Enter restaurant name">
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-600 mb-1">Phone Number</label>
+            <input type="tel" v-model="restaurantSettings.contact" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none" placeholder="Enter phone number">
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-600 mb-1">Street Address</label>
+            <input type="text" v-model="restaurantSettings.street_address" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none" placeholder="Building name/number, street">
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-semibold text-gray-600 mb-1">Locality</label>
+              <input type="text" v-model="restaurantSettings.locality" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none" placeholder="Enter locality">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-600 mb-1">City</label>
+              <input type="text" v-model="restaurantSettings.city" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none" placeholder="Enter city">
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-semibold text-gray-600 mb-1">State</label>
+              <input type="text" v-model="restaurantSettings.state" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none" placeholder="Enter state">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-600 mb-1">PIN Code</label>
+              <input type="text" v-model="restaurantSettings.pincode" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none" placeholder="Enter PIN code" maxlength="10">
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-600 mb-1">GSTIN</label>
+            <input type="text" v-model="restaurantSettings.gstin" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none" placeholder="Enter GST identification number" maxlength="15">
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-600 mb-1">UPI ID</label>
+            <input type="text" v-model="restaurantSettings.upi_id" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none" placeholder="Enter UPI ID for digital payments">
+          </div>
+        </div>
+        <div class="mt-6">
+          <button @click="saveRestaurantSettings" class="px-6 py-2.5 rounded-lg text-sm font-semibold bg-primary-500 text-white hover:bg-primary-600 transition-colors">Save Settings</button>
+        </div>
+      </div>
+
+      <!-- Team Management -->
+      <div v-if="activeSettingsTab === 'team'" class="max-w-2xl">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-base font-bold text-gray-700">Team Members</h3>
+          <button @click="openAddTeamMemberModal" class="px-4 py-2 rounded-lg text-sm font-semibold bg-primary-500 text-white hover:bg-primary-600 transition-colors">+ Add Member</button>
+        </div>
+
+        <div v-if="teamMembers.length === 0" class="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400 shadow-sm">
+          <svg class="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+          <div class="font-semibold">No team members yet</div>
+          <div class="text-sm mt-1">Add team members to manage your restaurant</div>
+        </div>
+
+        <div v-else class="space-y-3">
+          <div v-for="member in teamMembers" :key="member.id" class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-full bg-primary-500 text-white flex items-center justify-center font-bold text-sm">[[ member.username.charAt(0).toUpperCase() ]]</div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="font-semibold text-gray-800">[[ member.username ]]</span>
+                  <span class="px-2 py-0.5 text-[10px] font-bold rounded-full" :class="member.role === 'OWNER' ? 'bg-amber-100 text-amber-700' : member.role === 'MANAGER' ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-600'">[[ member.role ]]</span>
+                </div>
+                <div class="text-sm text-gray-400">[[ member.contact ]]</div>
+              </div>
+            </div>
+            <div class="flex gap-2">
+              <button @click="editTeamMember(member)" class="p-1.5 rounded border border-primary-300 text-primary-500 hover:bg-primary-50 transition-colors" title="Edit">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
+              <button @click="deleteTeamMember(member)" class="p-1.5 rounded border border-red-300 text-red-500 hover:bg-red-50 transition-colors" title="Delete">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end tab content area -->
+
+  <!-- ==================== ORDER SLIDE-OVER ==================== -->
+  <div v-if="showOrderModal" class="fixed inset-0 z-50 flex justify-end">
+    <div class="absolute inset-0 bg-black/30 backdrop-blur-sm" @click="closeModalOnOverlay"></div>
+    <div class="relative w-full max-w-2xl bg-white shadow-2xl overflow-y-auto" @click.stop>
+      <!-- Header -->
+      <div class="sticky top-0 z-10 px-5 py-4 border-b border-gray-100 flex items-center justify-between" :class="orderType === 'dine' ? 'bg-primary-500 text-white' : 'bg-amber-500 text-white'">
+        <h3 class="font-bold text-lg">[[ modalTitle ]]</h3>
+        <button @click="closeOrderModal" class="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors text-lg">&times;</button>
+      </div>
+
+      <div class="p-5">
+        <!-- Customer Info -->
+        <div class="grid grid-cols-2 gap-3 mb-4">
+          <input type="text" v-model="takeawayBill.customerName" class="px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none" placeholder="Customer Name">
+          <input type="tel" v-model="takeawayBill.contact" class="px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none" placeholder="Phone" maxlength="10" @input="checkTakeawayCustomerLoyalty">
+        </div>
+
+        <!-- Loyalty -->
+        <div v-if="loyaltyInfo" class="mb-4 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-sm font-semibold text-amber-700">
+          [[ loyaltyInfo.tier_info?.icon || '' ]] [[ loyaltyInfo.tier_info?.name || loyaltyInfo.tier || 'Regular' ]] Customer
+        </div>
+
+        <!-- Order Type Toggle -->
+        <div class="flex rounded-lg border border-gray-200 overflow-hidden mb-4">
+          <button @click="setOrderType('dine')" class="flex-1 px-4 py-2.5 text-sm font-semibold transition-colors" :class="orderType === 'dine' ? 'bg-primary-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'" data-order-type="dine">Dine In</button>
+          <button @click="setOrderType('takeaway')" class="flex-1 px-4 py-2.5 text-sm font-semibold transition-colors" :class="orderType === 'takeaway' ? 'bg-amber-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'" data-order-type="takeaway">Takeaway</button>
+        </div>
+
+        <!-- Table Selection (Dine-in only) -->
+        <div v-if="orderType === 'dine'" class="mb-4">
+          <label class="block text-sm font-semibold text-gray-600 mb-1">Select Table</label>
+          <div v-if="tables.length" class="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-2">
+            <button v-for="t in tables" :key="t.id" type="button"
+              @click="table = t.name"
+              :class="[
+                'px-2 py-2 rounded-lg text-sm font-semibold border transition-colors',
+                table === t.name
+                  ? 'bg-primary-500 text-white border-primary-500'
+                  : isTableOccupied(t.name)
+                    ? 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100'
+                    : 'bg-white text-gray-700 border-gray-200 hover:bg-primary-50 hover:border-primary-300'
+              ]">
+              [[ t.name ]]
+            </button>
+          </div>
+          <input v-else type="text" v-model="table" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none" placeholder="Table Number" ref="dineTableInput">
+        </div>
+
+        <!-- Popular Dishes -->
+        <div v-if="popularDishes.length" class="mb-4">
+          <div class="text-xs font-semibold text-gray-400 mb-2">Popular</div>
+          <div class="flex flex-wrap gap-1.5">
+            <button v-for="dish in popularDishes" :key="'pop-' + dish.id" type="button" @click="quickAddDish(dish)" class="px-3 py-1.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 hover:bg-primary-50 hover:text-primary-600 border border-gray-200 hover:border-primary-300 transition-colors">[[ dish.name ]]</button>
+          </div>
+        </div>
+
+        <!-- Items Section -->
+        <div class="mb-4">
+          <div class="text-sm font-bold text-gray-700 mb-2">Items</div>
+
+          <!-- Column Headers (desktop) -->
+          <div class="hidden sm:grid grid-cols-[1fr_auto_auto_auto] gap-2 text-xs font-semibold text-gray-400 px-1 mb-1">
+            <div>Item Name</div>
+            <div class="w-24 text-center">Qty</div>
+            <div class="w-16 text-center">Size</div>
+            <div class="w-8"></div>
+          </div>
+
+          <!-- Order Items -->
+          <div v-for="(item, index) in currentOrder" :key="index" class="py-2 border-b border-gray-100">
+            <div class="flex flex-wrap sm:grid sm:grid-cols-[1fr_auto_auto_auto] gap-2 items-center">
+              <!-- Item Name with Suggestions -->
+              <div class="relative w-full sm:w-auto">
+                <input type="text" v-model="item.name" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none" placeholder="Type dish name..." @input="onItemSearch(index)" @keydown="onItemKeydown($event, index)" @focus="onItemFocus(index)" @blur="hideItemSuggestions(index)" autocomplete="off" :ref="index === 0 && ((table && orderType==='dine') || (orderType==='takeaway')) ? 'firstItemNameInput' : null">
+                <div v-if="item.showSuggestions && item.suggestions.length" class="absolute z-20 left-0 right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 max-h-48 overflow-y-auto">
+                  <div v-for="(dish, i) in item.suggestions" :key="dish.id" class="px-3 py-2 cursor-pointer hover:bg-primary-50 transition-colors" :class="{'bg-primary-50': i === item.selectedSuggestion}" @mousedown="selectDish(index, dish)">
+                    <div class="text-sm font-medium text-gray-800">[[ dish.name ]]</div>
+                    <div v-if="dish.course && dish.course.name" class="text-xs text-gray-400">[[ dish.course.name ]]</div>
+                  </div>
+                </div>
+              </div>
+              <!-- Qty Controls -->
+              <div class="flex items-center gap-1 w-24 justify-center">
+                <button @click="decreaseItemQuantity(index)" class="w-7 h-7 rounded-md bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold text-sm flex items-center justify-center transition-colors">&#8722;</button>
+                <span class="w-8 text-center text-sm font-bold text-gray-800">[[ item.quantity ]]</span>
+                <button @click="increaseItemQuantity(index)" class="w-7 h-7 rounded-md bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold text-sm flex items-center justify-center transition-colors">+</button>
+              </div>
+              <!-- Size -->
+              <select v-model="item.size" @change="onSizeChange(index)" class="w-16 px-1 py-1.5 text-xs border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary-200 outline-none">
+                <option value="full">Full</option>
+                <option value="half">Half</option>
+              </select>
+              <!-- Remove -->
+              <button @click="removeItem(index)" class="w-8 h-8 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 flex items-center justify-center text-lg transition-colors">&times;</button>
+            </div>
+            <!-- Notes (shown once a dish is selected) -->
+            <div v-if="item.id" class="mt-1">
+              <input type="text" v-model="item.notes" class="w-full px-2 py-1 border border-gray-200 rounded text-xs text-gray-500 focus:ring-1 focus:ring-primary-200 focus:border-primary-300 outline-none" placeholder="Notes (e.g. extra cheese, no onion, less spicy)" maxlength="200">
+            </div>
+          </div>
+
+          <button @click="addItem" class="mt-2 w-full py-2 rounded-lg text-sm font-semibold text-primary-600 border border-dashed border-primary-300 hover:bg-primary-50 transition-colors">+ Add Item</button>
+        </div>
+
+        <!-- Order Summary -->
+        <div v-if="currentOrder.length" class="mb-4 text-sm">
+          <div class="text-gray-500">Total Items: <strong class="text-gray-800">[[ totalItems ]]</strong></div>
+
+          <!-- Takeaway Billing Summary -->
+          <div v-if="orderType === 'takeaway'" class="mt-4 bg-gray-50 rounded-xl p-4 border border-gray-200">
+            <div class="font-bold text-gray-700 mb-3">Bill Summary</div>
+
+            <!-- Order/Payment Config -->
+            <div class="grid grid-cols-2 gap-3 mb-3">
+              <div>
+                <label class="block text-xs font-semibold text-gray-500 mb-1">Order Type</label>
+                <select v-model="takeawayBill.orderType" @change="onTakeawayOrderTypeChange" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary-200 outline-none">
+                  <option value="RESTAURANT">Restaurant</option>
+                  <option value="SWIGGY">Swiggy</option>
+                  <option value="ZOMATO">Zomato</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-gray-500 mb-1">Payment</label>
+                <select v-model="takeawayBill.paymentType" @change="onTakeawayPaymentTypeChange" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary-200 outline-none">
+                  <option value="CASH">Cash</option>
+                  <option value="CARD">Card</option>
+                  <option value="UPI">UPI</option>
+                  <option value="CREDIT">Credit</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Items breakdown -->
+            <div class="border border-gray-200 rounded-lg overflow-hidden mb-3">
+              <div class="grid grid-cols-[2fr_0.8fr_0.8fr_1fr] gap-1 px-3 py-2 bg-gray-100 text-xs font-semibold text-gray-500">
+                <div>Item</div><div>Size</div><div>Qty</div><div class="text-right">Amount</div>
+              </div>
+              <div v-for="item in currentOrder" :key="item.id" v-if="item.name && item.price" class="grid grid-cols-[2fr_0.8fr_0.8fr_1fr] gap-1 px-3 py-2 border-t border-gray-100 text-sm">
+                <div class="text-gray-700 truncate">[[ item.name ]]</div>
+                <div class="text-gray-500 capitalize">[[ item.size ]]</div>
+                <div class="text-gray-500">[[ item.quantity ]]</div>
+                <div class="text-right font-medium text-gray-700">&#8377;[[ formatCurrency(item.price * item.quantity) ]]</div>
+              </div>
+            </div>
+
+            <!-- Calc Fields -->
+            <div class="space-y-2 mb-3">
+              <div class="grid grid-cols-2 gap-3">
+                <div class="flex items-center gap-2">
+                  <span class="text-xs text-gray-500 whitespace-nowrap">Discount %</span>
+                  <input v-model.number="takeawayBill.discountPercent" type="number" min="0" max="100" step="0.1" placeholder="0" @input="calculateTakeawayBill" class="w-full px-2 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-200 outline-none">
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-xs text-gray-500 whitespace-nowrap">Discount &#8377;</span>
+                  <input v-model.number="takeawayBill.discount" type="number" min="0" step="0.01" placeholder="0" @input="calculateTakeawayDiscountPercent" class="w-full px-2 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-200 outline-none">
+                </div>
+              </div>
+              <div v-if="takeawayBill.orderType !== 'ZOMATO' && restaurantHasGstin" class="grid grid-cols-2 gap-3">
+                <div class="flex items-center gap-2">
+                  <span class="text-xs text-gray-500 whitespace-nowrap">CGST %</span>
+                  <input v-model.number="takeawayBill.cgstPercent" type="number" min="0" step="0.1" @input="onTakeawayCgstSgstPercentChange" class="w-full px-2 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-200 outline-none">
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-xs text-gray-500 whitespace-nowrap">SGST %</span>
+                  <input v-model.number="takeawayBill.sgstPercent" type="number" min="0" step="0.1" @input="onTakeawayCgstSgstPercentChange" class="w-full px-2 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-200 outline-none">
+                </div>
+              </div>
+              <div v-if="takeawayBill.orderType !== 'ZOMATO' && restaurantHasGstin" class="grid grid-cols-2 gap-3">
+                <div class="flex items-center gap-2">
+                  <span class="text-xs text-gray-500 whitespace-nowrap">IGST %</span>
+                  <input v-model.number="takeawayBill.igstPercent" type="number" min="0" step="0.1" @input="onTakeawayIgstPercentChange" class="w-full px-2 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-200 outline-none">
+                </div>
+                <div></div>
+              </div>
+              <div v-if="!restaurantHasGstin && takeawayBill.orderType !== 'ZOMATO'" class="text-xs text-gray-400 italic text-center py-1">GST fields hidden - restaurant GSTIN not configured</div>
+              <div class="grid grid-cols-2 gap-3">
+                <div class="flex items-center gap-2">
+                  <span class="text-xs text-gray-500 whitespace-nowrap">Delivery &#8377;</span>
+                  <input v-model.number="takeawayBill.deliveryCharge" type="number" min="0" step="0.01" placeholder="0" @input="calculateTakeawayBill" class="w-full px-2 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-200 outline-none">
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-xs text-gray-500 whitespace-nowrap">Packaging &#8377;</span>
+                  <input v-model.number="takeawayBill.packagingCharge" type="number" min="0" step="0.01" placeholder="0" @input="calculateTakeawayBill" class="w-full px-2 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-200 outline-none">
+                </div>
+              </div>
+            </div>
+
+            <!-- Bill Totals -->
+            <div class="border-t border-gray-200 pt-3 space-y-1 text-sm">
+              <div class="flex justify-between"><span class="text-gray-500">Subtotal</span><span class="font-medium">&#8377;[[ formatCurrency(takeawayBill.subtotal) ]]</span></div>
+              <div v-if="takeawayBill.discount > 0" class="flex justify-between"><span class="text-gray-500">Discount ([[ takeawayBill.discountPercent.toFixed(1) ]]%)</span><span class="text-red-500">-&#8377;[[ formatCurrency(takeawayBill.discount) ]]</span></div>
+              <div class="flex justify-between"><span class="text-gray-500">Net Amount</span><span class="font-medium">&#8377;[[ formatCurrency(takeawayBill.net) ]]</span></div>
+              <div v-if="takeawayBill.orderType !== 'ZOMATO' && restaurantHasGstin && takeawayBill.cgst > 0" class="flex justify-between"><span class="text-gray-500">CGST ([[ takeawayBill.cgstPercent ]]%)</span><span>&#8377;[[ formatCurrency(takeawayBill.cgst) ]]</span></div>
+              <div v-if="takeawayBill.orderType !== 'ZOMATO' && restaurantHasGstin && takeawayBill.sgst > 0" class="flex justify-between"><span class="text-gray-500">SGST ([[ takeawayBill.sgstPercent ]]%)</span><span>&#8377;[[ formatCurrency(takeawayBill.sgst) ]]</span></div>
+              <div v-if="takeawayBill.orderType !== 'ZOMATO' && restaurantHasGstin && takeawayBill.igst > 0" class="flex justify-between"><span class="text-gray-500">IGST ([[ takeawayBill.igstPercent ]]%)</span><span>&#8377;[[ formatCurrency(takeawayBill.igst) ]]</span></div>
+              <div v-if="takeawayBill.deliveryCharge > 0" class="flex justify-between"><span class="text-gray-500">Delivery</span><span>&#8377;[[ formatCurrency(takeawayBill.deliveryCharge) ]]</span></div>
+              <div v-if="takeawayBill.packagingCharge > 0" class="flex justify-between"><span class="text-gray-500">Packaging</span><span>&#8377;[[ formatCurrency(takeawayBill.packagingCharge) ]]</span></div>
+              <div class="flex justify-between pt-2 border-t border-gray-200 font-bold text-base"><span>Total</span><span>&#8377;[[ formatCurrency(takeawayBill.total) ]]</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div v-if="currentOrder.length" class="flex flex-wrap gap-2 pt-4 border-t border-gray-100">
+          <button @click="clearOrder" class="px-4 py-2.5 rounded-lg text-sm font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">Clear All</button>
+          <button v-if="orderType === 'dine'" @click="sendToKitchen" class="px-4 py-2.5 rounded-lg text-sm font-semibold bg-gray-700 text-white hover:bg-gray-800 transition-colors" :disabled="!canSendOrder">[[ isCreatingOrder ? 'Sending...' : 'Save' ]]</button>
+          <button @click="sendToKitchenAndPrintKOT" class="flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold bg-primary-500 text-white hover:bg-primary-600 transition-colors" :disabled="!canSendOrder">[[ isCreatingOrder ? 'Processing...' : 'Print KOT' ]]</button>
+          <button v-if="orderType === 'takeaway'" @click="saveTakeawayOrderAndBill" class="flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold bg-emerald-500 text-white hover:bg-emerald-600 transition-colors" :disabled="!canSendOrder">[[ isCreatingOrder ? 'Processing...' : 'Save & Bill' ]]</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== EXISTING ORDERS MODAL ==================== -->
+  <div v-if="showExistingOrdersModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/30 backdrop-blur-sm" @click="closeExistingOrdersModalOnOverlay"></div>
+    <div class="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden max-h-[85vh] flex flex-col" @click.stop>
+      <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+        <h3 class="font-bold text-gray-800">Table [[ currentTable ]] - Existing Orders</h3>
+        <button @click="closeExistingOrdersModal" class="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 text-lg">&times;</button>
+      </div>
+      <div class="p-5 overflow-y-auto flex-1">
+        <div v-if="existingOrders.length > 0">
+          <!-- Headers -->
+          <div class="grid grid-cols-[1fr_auto_auto_auto] gap-3 text-xs font-semibold text-gray-400 px-1 mb-2">
+            <div>Dish Name</div><div class="w-16 text-center">Size</div><div class="w-24 text-center">Qty</div><div class="w-8"></div>
+          </div>
+          <!-- Items -->
+          <div v-for="(order, index) in existingOrders" :key="order.id" class="grid grid-cols-[1fr_auto_auto_auto] gap-3 items-center py-2.5 border-b border-gray-100">
+            <div class="text-sm font-medium text-gray-800">[[ order.dish.name ]]</div>
+            <select v-model="order.size" @change="updateOrderSize(index)" class="w-16 px-1 py-1 text-xs border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary-200 outline-none">
+              <option value="full">Full</option>
+              <option value="half">Half</option>
+            </select>
+            <div class="flex items-center gap-1 w-24 justify-center">
+              <button @click="decreaseOrderQuantity(index)" class="w-7 h-7 rounded-md bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold text-sm flex items-center justify-center">&#8722;</button>
+              <span class="w-8 text-center text-sm font-bold">[[ order.quantity ]]</span>
+              <button @click="increaseOrderQuantity(index)" class="w-7 h-7 rounded-md bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold text-sm flex items-center justify-center">+</button>
+            </div>
+            <button @click="removeOrder(index)" class="w-8 h-8 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 flex items-center justify-center text-lg">&times;</button>
+          </div>
+          <!-- Actions -->
+          <div class="flex flex-wrap gap-2 mt-4">
+            <button @click="addMoreItems" class="px-4 py-2.5 rounded-lg text-sm font-semibold bg-primary-500 text-white hover:bg-primary-600 transition-colors">+ Add More</button>
+            <button @click="openBillingModal" class="px-4 py-2.5 rounded-lg text-sm font-semibold bg-gray-700 text-white hover:bg-gray-800 transition-colors">Generate Bill</button>
+            <button @click="discardTable" class="px-4 py-2.5 rounded-lg text-sm font-semibold bg-red-500 text-white hover:bg-red-600 transition-colors">Discard</button>
+          </div>
+        </div>
+        <div v-else class="flex flex-col items-center py-12 text-gray-400">
+          <svg class="w-10 h-10 mb-3 opacity-30" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+          <div class="text-sm font-semibold mb-3">No orders for this table</div>
+          <button @click="addMoreItems" class="px-4 py-2 rounded-lg text-sm font-semibold bg-primary-500 text-white hover:bg-primary-600 transition-colors">+ Add Items</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MERGE TABLE MODAL ==================== -->
+  <div v-if="showMergeModal && mergeSourceTable" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/30 backdrop-blur-sm" @click="closeMergeModal"></div>
+    <div class="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden" @click.stop>
+      <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+        <h3 class="font-bold text-gray-800">Merge Table #[[ mergeSourceTable.table_number ]]</h3>
+        <button @click="closeMergeModal" class="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors text-gray-500 text-lg">&times;</button>
+      </div>
+      <div class="p-5">
+        <p class="text-sm text-gray-500 mb-3">Select destination table to move all orders into:</p>
+        <div class="grid grid-cols-3 sm:grid-cols-4 gap-2">
+          <template v-for="t in activeTables">
+            <button v-if="t.id !== mergeSourceTable.id" :key="t.id" @click="confirmMergeTable(t)"
+              class="px-3 py-3 rounded-lg border-2 border-gray-200 hover:border-amber-400 hover:bg-amber-50 text-center transition-colors">
+              <div class="text-lg font-bold text-gray-800">#[[ t.table_number ]]</div>
+              <div class="text-[10px] text-gray-400 mt-0.5">[[ formatTableDuration(t.created_at) ]]</div>
+            </button>
+          </template>
+        </div>
+        <div v-if="activeTables.length <= 1" class="text-center py-8 text-gray-400 text-sm">
+          No other active tables to merge into
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== BILLING SLIDE-OVER ==================== -->
+  <div v-if="showBillingModal" class="fixed inset-0 z-50 flex justify-end">
+    <div class="absolute inset-0 bg-black/30 backdrop-blur-sm" @click="closeBillingModalOnOverlay"></div>
+    <div class="relative w-full max-w-2xl bg-white shadow-2xl overflow-y-auto" @click.stop>
+      <!-- Header -->
+      <div class="sticky top-0 z-10 px-5 py-4 bg-gray-800 text-white flex items-center justify-between">
+        <h3 class="font-bold text-lg">
+          <span v-if="billingMode === 'edit'">Edit Bill</span>
+          <span v-else>Table [[ currentTable ]] - Bill</span>
+        </h3>
+        <button @click="closeBillingModal" class="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors text-lg">&times;</button>
+      </div>
+
+      <div class="p-5">
+        <!-- Customer Details -->
+        <div class="mb-5">
+          <div class="text-sm font-bold text-gray-700 mb-3">Customer Details</div>
+          <!-- Loyalty -->
+          <div v-if="billing.loyaltyInfo && billing.loyaltyInfo.tier" class="mb-3 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200">
+            <div class="text-sm font-semibold text-amber-700">[[ billing.loyaltyInfo.tier_info?.icon || '' ]] [[ billing.loyaltyInfo.tier_info?.name || billing.loyaltyInfo.tier || 'Regular' ]] Customer</div>
+            <div v-if="!billing.loyaltyInfo.is_new" class="text-xs text-amber-600 mt-1">
+              Spent: &#8377;[[ billing.loyaltyInfo.total_spent_formatted || '0' ]] | Orders: [[ billing.loyaltyInfo.total_orders || 0 ]]
+              <span v-if="billing.loyaltyInfo.recommended_discount > 0"> | Rec. Discount: [[ billing.loyaltyInfo.recommended_discount ]]%</span>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label class="block text-xs font-semibold text-gray-500 mb-1">Name</label>
+              <input v-model="billing.customerName" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none" placeholder="Customer Name">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-gray-500 mb-1">Phone</label>
+              <input v-model="billing.contact" type="tel" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none" placeholder="Phone" maxlength="10" @input="checkBillingCustomerLoyalty">
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-gray-500 mb-1">GSTIN</label>
+              <input v-model="billing.customerGstin" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none" placeholder="Optional" maxlength="15">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-gray-500 mb-1">Order Type</label>
+              <select v-model="billing.orderType" @change="updateBillingOrderType" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary-200 outline-none">
+                <option value="RESTAURANT">Restaurant</option>
+                <option value="SWIGGY">Swiggy</option>
+                <option value="ZOMATO">Zomato</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Order Items -->
+        <div class="mb-5">
+          <div class="text-sm font-bold text-gray-700 mb-3">Order Items</div>
+          <div class="border border-gray-200 rounded-lg overflow-hidden">
+            <table class="w-full text-sm">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-3 py-2 text-left font-semibold text-gray-600">Item</th>
+                  <th class="px-3 py-2 text-center font-semibold text-gray-600">Size</th>
+                  <th class="px-3 py-2 text-center font-semibold text-gray-600">Qty</th>
+                  <th class="px-3 py-2 text-right font-semibold text-gray-600">Rate</th>
+                  <th class="px-3 py-2 text-right font-semibold text-gray-600">Amount</th>
+                  <th class="px-3 py-2 text-center font-semibold text-gray-600 w-16"></th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100">
+                <tr v-for="item in billing.items" :key="item.id || item.name">
+                  <td class="px-3 py-2 text-gray-800">[[ item.name ]]</td>
+                  <td class="px-3 py-2 text-center text-gray-600 capitalize">[[ item.size ]]</td>
+                  <td class="px-3 py-2 text-center">
+                    <input type="number" :value="item.quantity" @change="editBillingOrderQuantity(item.id, $event.target.value)" min="1" class="w-12 px-1 py-0.5 text-center text-sm border border-gray-300 rounded focus:ring-2 focus:ring-primary-200 outline-none">
+                  </td>
+                  <td class="px-3 py-2 text-right font-medium text-gray-700">&#8377;[[ formatCurrency(item.rate) ]]</td>
+                  <td class="px-3 py-2 text-right font-medium text-gray-700">&#8377;[[ formatCurrency(item.amount) ]]</td>
+                  <td class="px-3 py-2 text-center">
+                    <button @click="removeBillingOrder(item.id, item.name)" class="px-2 py-1 text-xs font-semibold rounded bg-red-500 text-white hover:bg-red-600 transition-colors">Remove</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Billing Calculations -->
+        <div class="mb-5">
+          <div class="text-sm font-bold text-gray-700 mb-3">Calculations</div>
+          <div class="space-y-2">
+            <div class="grid grid-cols-2 gap-3">
+              <div class="flex items-center gap-2">
+                <span class="text-xs text-gray-500 whitespace-nowrap w-20">Discount %</span>
+                <input v-model.number="billing.discountPercent" type="number" min="0" max="100" step="0.1" placeholder="0" @input="calculateBilling" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-200 outline-none">
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-xs text-gray-500 whitespace-nowrap w-20">Discount &#8377;</span>
+                <input v-model.number="billing.discount" type="number" min="0" step="0.01" placeholder="0" @input="calculateDiscountPercent" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-200 outline-none">
+              </div>
+            </div>
+            <div v-if="billing.orderType !== 'ZOMATO' && restaurantHasGstin" class="grid grid-cols-2 gap-3">
+              <div class="flex items-center gap-2">
+                <span class="text-xs text-gray-500 whitespace-nowrap w-20">CGST %</span>
+                <input v-model.number="billing.cgstPercent" type="number" min="0" step="0.1" @input="onCgstSgstPercentChange" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-200 outline-none">
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-xs text-gray-500 whitespace-nowrap w-20">SGST %</span>
+                <input v-model.number="billing.sgstPercent" type="number" min="0" step="0.1" @input="onCgstSgstPercentChange" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-200 outline-none">
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div v-if="billing.orderType !== 'ZOMATO' && restaurantHasGstin" class="flex items-center gap-2">
+                <span class="text-xs text-gray-500 whitespace-nowrap w-20">IGST %</span>
+                <input v-model.number="billing.igstPercent" type="number" min="0" step="0.1" @input="onBillingIgstPercentChange" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-200 outline-none">
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-xs text-gray-500 whitespace-nowrap w-20">Payment</span>
+                <select v-model="billing.paymentType" @change="onPaymentTypeChange" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary-200 outline-none">
+                  <option value="CASH">Cash</option>
+                  <option value="CARD">Card</option>
+                  <option value="UPI">UPI</option>
+                  <option value="CREDIT">Credit</option>
+                </select>
+              </div>
+            </div>
+            <div v-if="!restaurantHasGstin && billing.orderType !== 'ZOMATO'" class="text-xs text-gray-400 italic text-center py-1">GST fields hidden - restaurant GSTIN not configured</div>
+            <div class="grid grid-cols-2 gap-3">
+              <div class="flex items-center gap-2">
+                <span class="text-xs text-gray-500 whitespace-nowrap w-20">Delivery &#8377;</span>
+                <input v-model.number="billing.deliveryCharge" type="number" min="0" step="0.01" placeholder="0" @input="calculateBilling" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-200 outline-none">
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-xs text-gray-500 whitespace-nowrap w-20">Packaging &#8377;</span>
+                <input v-model.number="billing.packagingCharge" type="number" min="0" step="0.01" placeholder="0" @input="calculateBilling" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-200 outline-none">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bill Summary -->
+        <div class="bg-gray-50 rounded-xl p-4 border border-gray-200 mb-5 space-y-1 text-sm">
+          <div class="flex justify-between"><span class="text-gray-500">Subtotal</span><span class="font-medium">&#8377;[[ formatCurrency(billing.subtotal) ]]</span></div>
+          <div v-if="billing.discount > 0" class="flex justify-between"><span class="text-gray-500">Discount ([[ billing.discountPercent.toFixed(1) ]]%)</span><span class="text-red-500">-&#8377;[[ formatCurrency(billing.discount) ]]</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">Net Amount</span><span class="font-medium">&#8377;[[ formatCurrency(billing.net) ]]</span></div>
+          <div v-if="billing.orderType !== 'ZOMATO' && restaurantHasGstin && billing.cgst > 0" class="flex justify-between"><span class="text-gray-500">CGST ([[ billing.cgstPercent ]]%)</span><span>&#8377;[[ formatCurrency(billing.cgst) ]]</span></div>
+          <div v-if="billing.orderType !== 'ZOMATO' && restaurantHasGstin && billing.sgst > 0" class="flex justify-between"><span class="text-gray-500">SGST ([[ billing.sgstPercent ]]%)</span><span>&#8377;[[ formatCurrency(billing.sgst) ]]</span></div>
+          <div v-if="billing.orderType !== 'ZOMATO' && restaurantHasGstin && billing.igst > 0" class="flex justify-between"><span class="text-gray-500">IGST ([[ billing.igstPercent ]]%)</span><span>&#8377;[[ formatCurrency(billing.igst) ]]</span></div>
+          <div v-if="billing.deliveryCharge > 0" class="flex justify-between"><span class="text-gray-500">Delivery</span><span>&#8377;[[ formatCurrency(billing.deliveryCharge) ]]</span></div>
+          <div v-if="billing.packagingCharge > 0" class="flex justify-between"><span class="text-gray-500">Packaging</span><span>&#8377;[[ formatCurrency(billing.packagingCharge) ]]</span></div>
+          <div class="flex justify-between pt-2 border-t border-gray-300 font-bold text-base"><span>Total</span><span>&#8377;[[ formatCurrency(billing.total) ]]</span></div>
+        </div>
+
+        <!-- Pending Changes -->
+        <div v-if="pendingChanges.length > 0" class="mb-4 px-4 py-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800">
+          <div class="font-semibold text-sm">Pending Changes ([[ pendingChanges.length ]])</div>
+          <div class="text-xs mt-1">Changes will be processed when you save.</div>
+        </div>
+        <div v-if="isProcessingChanges" class="mb-4 px-4 py-3 rounded-lg bg-sky-50 border border-sky-200 text-sky-800">
+          <div class="font-semibold text-sm">Processing Changes...</div>
+          <div class="text-xs mt-1">Please wait.</div>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex gap-2 pt-4 border-t border-gray-100">
+          <button @click="closeBillingModal" class="px-4 py-2.5 rounded-lg text-sm font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">Cancel</button>
+          <button v-if="billingMode === 'edit'" @click="updateBill" class="flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold bg-primary-500 text-white hover:bg-primary-600 transition-colors" :disabled="isProcessingChanges">Update Bill</button>
+          <button v-else @click="saveBill" class="px-4 py-2.5 rounded-lg text-sm font-semibold bg-gray-700 text-white hover:bg-gray-800 transition-colors" :disabled="isProcessingChanges">Save Bill</button>
+          <button v-if="billingMode !== 'edit'" @click="saveBillAndPrint" class="flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold bg-primary-500 text-white hover:bg-primary-600 transition-colors" :disabled="isProcessingChanges">Save & Print</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== ADD DISH MODAL ==================== -->
+  <div v-if="showAddDishModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/30 backdrop-blur-sm" @click="closeAddDishModalOnOverlay"></div>
+    <div class="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col" @click.stop>
+      <div class="px-6 py-4 bg-emerald-500 text-white flex items-center justify-between shrink-0">
+        <h3 class="font-bold text-lg">Add New Dish</h3>
+        <button @click="closeAddDishModal" class="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-lg">&times;</button>
+      </div>
+      <div class="p-6 overflow-y-auto flex-1">
+        <form @submit.prevent="createDish">
+          <!-- Basic Info -->
+          <div class="bg-gray-50 rounded-xl p-5 mb-5 border border-gray-200">
+            <h4 class="font-semibold text-gray-700 mb-4">Basic Information</h4>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-semibold text-gray-600 mb-1">Dish Name *</label>
+                <input type="text" v-model="new_dish.name" required autocomplete="off" placeholder="Enter dish name" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none">
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-gray-600 mb-1">Course *</label>
+                <input type="text" v-model="new_dish.category" list="add-dish-courses" required autocomplete="off" placeholder="Select or enter course" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none">
+                <datalist id="add-dish-courses"><option v-for="course in courses" :value="course.name" :key="course.id"></option></datalist>
+              </div>
+            </div>
+          </div>
+          <!-- Pricing -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+            <div class="bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl p-4 text-white">
+              <h5 class="font-semibold mb-3">Restaurant</h5>
+              <div class="grid grid-cols-2 gap-3">
+                <div><label class="block text-xs opacity-80 mb-1">Half</label><input type="number" v-model="new_dish.half_price" min="0" step="0.01" placeholder="0" class="w-full px-2 py-1.5 rounded-lg text-sm bg-white/10 border border-white/20 text-white placeholder-white/50 focus:ring-2 focus:ring-white/30 outline-none"></div>
+                <div><label class="block text-xs opacity-80 mb-1">Full</label><input type="number" v-model="new_dish.full_price" min="0" step="0.01" placeholder="0" class="w-full px-2 py-1.5 rounded-lg text-sm bg-white/10 border border-white/20 text-white placeholder-white/50 focus:ring-2 focus:ring-white/30 outline-none"></div>
+              </div>
+            </div>
+            <div class="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-4 text-white">
+              <h5 class="font-semibold mb-3">Swiggy</h5>
+              <div class="grid grid-cols-2 gap-3">
+                <div><label class="block text-xs opacity-80 mb-1">Half</label><input type="number" v-model="new_dish.swiggy_half_price" min="0" step="0.01" placeholder="0" class="w-full px-2 py-1.5 rounded-lg text-sm bg-white/10 border border-white/20 text-white placeholder-white/50 focus:ring-2 focus:ring-white/30 outline-none"></div>
+                <div><label class="block text-xs opacity-80 mb-1">Full</label><input type="number" v-model="new_dish.swiggy_full_price" min="0" step="0.01" placeholder="0" class="w-full px-2 py-1.5 rounded-lg text-sm bg-white/10 border border-white/20 text-white placeholder-white/50 focus:ring-2 focus:ring-white/30 outline-none"></div>
+              </div>
+            </div>
+            <div class="bg-gradient-to-br from-red-500 to-red-600 rounded-xl p-4 text-white">
+              <h5 class="font-semibold mb-3">Zomato</h5>
+              <div class="grid grid-cols-2 gap-3">
+                <div><label class="block text-xs opacity-80 mb-1">Half</label><input type="number" v-model="new_dish.zomato_half_price" min="0" step="0.01" placeholder="0" class="w-full px-2 py-1.5 rounded-lg text-sm bg-white/10 border border-white/20 text-white placeholder-white/50 focus:ring-2 focus:ring-white/30 outline-none"></div>
+                <div><label class="block text-xs opacity-80 mb-1">Full</label><input type="number" v-model="new_dish.zomato_full_price" min="0" step="0.01" placeholder="0" class="w-full px-2 py-1.5 rounded-lg text-sm bg-white/10 border border-white/20 text-white placeholder-white/50 focus:ring-2 focus:ring-white/30 outline-none"></div>
+              </div>
+            </div>
+          </div>
+          <div class="flex justify-end">
+            <button type="submit" class="px-6 py-2.5 rounded-lg text-sm font-semibold bg-primary-500 text-white hover:bg-primary-600 transition-colors">Save Dish</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== UPDATE DISH MODAL ==================== -->
+  <div v-if="showUpdateDishModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/30 backdrop-blur-sm" @click="closeUpdateDishModalOnOverlay"></div>
+    <div class="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col" @click.stop>
+      <div class="px-6 py-4 bg-primary-500 text-white flex items-center justify-between shrink-0">
+        <h3 class="font-bold text-lg">Update Dish</h3>
+        <button @click="closeUpdateDishModal" class="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-lg">&times;</button>
+      </div>
+      <div class="p-6 overflow-y-auto flex-1">
+        <form @submit.prevent="submitUpdateDish">
+          <div class="bg-gray-50 rounded-xl p-5 mb-5 border border-gray-200">
+            <h4 class="font-semibold text-gray-700 mb-4">Basic Information</h4>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-semibold text-gray-600 mb-1">Dish Name *</label>
+                <input type="text" v-model="update_dish.name" required autocomplete="off" placeholder="Enter dish name" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none">
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-gray-600 mb-1">Course *</label>
+                <input type="text" v-model="update_dish.course_name" list="update-dish-courses" required autocomplete="off" placeholder="Select or enter course" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none">
+                <datalist id="update-dish-courses"><option v-for="course in courses" :value="course.name" :key="course.id"></option></datalist>
+              </div>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+            <div class="bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl p-4 text-white">
+              <h5 class="font-semibold mb-3">Restaurant</h5>
+              <div class="grid grid-cols-2 gap-3">
+                <div><label class="block text-xs opacity-80 mb-1">Half</label><input type="number" v-model="update_dish.restaurant_half_price" min="0" step="0.01" placeholder="0" class="w-full px-2 py-1.5 rounded-lg text-sm bg-white/10 border border-white/20 text-white placeholder-white/50 focus:ring-2 focus:ring-white/30 outline-none"></div>
+                <div><label class="block text-xs opacity-80 mb-1">Full</label><input type="number" v-model="update_dish.restaurant_full_price" min="0" step="0.01" placeholder="0" class="w-full px-2 py-1.5 rounded-lg text-sm bg-white/10 border border-white/20 text-white placeholder-white/50 focus:ring-2 focus:ring-white/30 outline-none"></div>
+              </div>
+            </div>
+            <div class="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-4 text-white">
+              <h5 class="font-semibold mb-3">Swiggy</h5>
+              <div class="grid grid-cols-2 gap-3">
+                <div><label class="block text-xs opacity-80 mb-1">Half</label><input type="number" v-model="update_dish.swiggy_half_price" min="0" step="0.01" placeholder="0" class="w-full px-2 py-1.5 rounded-lg text-sm bg-white/10 border border-white/20 text-white placeholder-white/50 focus:ring-2 focus:ring-white/30 outline-none"></div>
+                <div><label class="block text-xs opacity-80 mb-1">Full</label><input type="number" v-model="update_dish.swiggy_full_price" min="0" step="0.01" placeholder="0" class="w-full px-2 py-1.5 rounded-lg text-sm bg-white/10 border border-white/20 text-white placeholder-white/50 focus:ring-2 focus:ring-white/30 outline-none"></div>
+              </div>
+            </div>
+            <div class="bg-gradient-to-br from-red-500 to-red-600 rounded-xl p-4 text-white">
+              <h5 class="font-semibold mb-3">Zomato</h5>
+              <div class="grid grid-cols-2 gap-3">
+                <div><label class="block text-xs opacity-80 mb-1">Half</label><input type="number" v-model="update_dish.zomato_half_price" min="0" step="0.01" placeholder="0" class="w-full px-2 py-1.5 rounded-lg text-sm bg-white/10 border border-white/20 text-white placeholder-white/50 focus:ring-2 focus:ring-white/30 outline-none"></div>
+                <div><label class="block text-xs opacity-80 mb-1">Full</label><input type="number" v-model="update_dish.zomato_full_price" min="0" step="0.01" placeholder="0" class="w-full px-2 py-1.5 rounded-lg text-sm bg-white/10 border border-white/20 text-white placeholder-white/50 focus:ring-2 focus:ring-white/30 outline-none"></div>
+              </div>
+            </div>
+          </div>
+          <div class="flex justify-end">
+            <button type="submit" class="px-6 py-2.5 rounded-lg text-sm font-semibold bg-primary-500 text-white hover:bg-primary-600 transition-colors">Save Changes</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== COURSE ORDER MODAL ==================== -->
+  <div v-if="showCourseOrderModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/30 backdrop-blur-sm" @click="closeCourseOrderModalOnOverlay"></div>
+    <div class="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden" @click.stop>
+      <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+        <h3 class="font-bold text-gray-800">Reorder Courses</h3>
+        <button @click="closeCourseOrderModal" class="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 text-lg">&times;</button>
+      </div>
+      <div class="p-5">
+        <p class="text-sm text-gray-500 mb-3">Drag courses to reorder:</p>
+        <ul id="course-order-list" class="space-y-1 mb-4">
+          <li v-for="course in orderedCourses" :key="course.id" :data-key="course.id" class="flex items-center gap-3 px-4 py-3 bg-gray-50 rounded-lg border border-gray-200 cursor-grab active:cursor-grabbing">
+            <span class="text-gray-400 text-sm">&#8942;&#8942;</span>
+            <span class="text-sm font-medium text-gray-700">[[ course.name ]]</span>
+          </li>
+        </ul>
+        <div class="flex gap-2 justify-end">
+          <button @click="closeCourseOrderModal" class="px-4 py-2 rounded-lg text-sm font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">Cancel</button>
+          <button @click="saveCourseOrder" class="px-4 py-2 rounded-lg text-sm font-semibold bg-primary-500 text-white hover:bg-primary-600 transition-colors" :disabled="savingOrder">[[ savingOrder ? 'Saving...' : 'Save Order' ]]</button>
+        </div>
+        <div v-if="orderSaved" class="mt-3 text-sm text-emerald-600 font-semibold text-center">Course order saved!</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== TEAM MEMBER MODAL ==================== -->
+  <div v-if="showTeamMemberModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/30 backdrop-blur-sm" @click="closeTeamMemberModalOnOverlay"></div>
+    <div class="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden" @click.stop>
+      <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+        <h3 class="font-bold text-gray-800">[[ editingTeamMember ? 'Edit' : 'Add' ]] Team Member</h3>
+        <button @click="closeTeamMemberModal" class="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 text-lg">&times;</button>
+      </div>
+      <div class="p-5">
+        <form @submit.prevent="saveTeamMember">
+          <div class="space-y-4 mb-5">
+            <div>
+              <label class="block text-sm font-semibold text-gray-600 mb-1">Username *</label>
+              <input type="text" v-model="teamMemberForm.username" required placeholder="Enter username" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-600 mb-1">Role *</label>
+              <select v-model="teamMemberForm.role" required class="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary-200 outline-none">
+                <option value="">Select Role</option>
+                <option value="OWNER">Owner</option>
+                <option value="MANAGER">Manager</option>
+                <option value="WAITER">Waiter</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-600 mb-1">Contact</label>
+              <input type="tel" v-model="teamMemberForm.contact" placeholder="Enter contact number" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-600 mb-1">Password [[ editingTeamMember ? '(blank = keep unchanged)' : '*' ]]</label>
+              <input type="password" v-model="teamMemberForm.password" :required="!editingTeamMember" placeholder="Enter password" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none">
+            </div>
+          </div>
+          <div class="flex gap-2 justify-end">
+            <button type="button" @click="closeTeamMemberModal" class="px-4 py-2.5 rounded-lg text-sm font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">Cancel</button>
+            <button type="submit" class="px-4 py-2.5 rounded-lg text-sm font-semibold bg-primary-500 text-white hover:bg-primary-600 transition-colors">[[ editingTeamMember ? 'Update' : 'Add' ]] Member</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end dashboardApp -->
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script src="{% static 'assets/js/vue.min.js' %}"></script>
+<script src="{% static 'assets/js/axios.js' %}"></script>
+<script src="{% static 'assets/js/order/utils.js' %}"></script>
+<script src="{% static 'assets/js/order/cache.js' %}"></script>
+<script src="{% static 'assets/js/order/tables.js' %}"></script>
+<script src="{% static 'assets/js/order/order-pad.js' %}"></script>
+<script src="{% static 'assets/js/order/kot.js' %}"></script>
+<script src="{% static 'assets/js/order/takeaway.js' %}"></script>
+<script src="{% static 'assets/js/order/billing.js' %}"></script>
+<script src="{% static 'assets/js/order/history.js' %}"></script>
+<script src="{% static 'assets/js/order/menu-mgmt.js' %}"></script>
+<script src="{% static 'assets/js/order/settings.js' %}"></script>
+<script src="{% static 'assets/js/order/app.js' %}"></script>
+<script>
+  // Initialize restaurant settings data from Django context
+  window.restaurantData = {
+    name: '{{ request.restaurant.name|default:"" }}',
+    contact: '{{ request.restaurant.contact|default:"" }}',
+    street_address: '{{ request.restaurant.street_address|default:"" }}',
+    locality: '{{ request.restaurant.locality|default:"" }}',
+    city: '{{ request.restaurant.city|default:"" }}',
+    state: '{{ request.restaurant.state|default:"" }}',
+    pincode: '{{ request.restaurant.pincode|default:"" }}',
+    gstin: '{{ request.restaurant.gstin|default:"" }}',
+    upi_id: '{{ request.restaurant.upi_id|default:"" }}'
+  };
+</script>
+{% endblock %}

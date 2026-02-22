@@ -1,0 +1,392 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Restaurant Settings | DinePay{% endblock %}
+
+{% block breadcrumb %}
+<span class="breadcrumb-restaurant">{{ request.restaurant.display_name|default:request.restaurant.name|default:"DinePay" }}</span>
+<span class="breadcrumb-sep">/</span>
+<span class="breadcrumb-page">Settings</span>
+{% endblock %}
+
+{% block inline_css %}
+<style>
+  .settings-tab { display: none; }
+  .settings-tab.active-tab { display: block; }
+  .tab-btn { transition: all 0.15s ease; }
+  .tab-btn.active { background: linear-gradient(135deg, #6c63ff 0%, #818cf8 100%); color: #fff; box-shadow: 0 2px 8px rgba(108,99,255,0.15); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 py-2">
+  <!-- Page Header -->
+  <div class="text-center mb-4">
+    <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary-50 mb-3">
+      <i data-feather="sliders" class="text-primary-500" style="width:24px;height:24px;"></i>
+    </div>
+    <h1 class="text-2xl font-bold text-gray-900">Restaurant Profile</h1>
+    <p class="text-sm text-gray-500 mt-1">Edit your restaurant's business information</p>
+  </div>
+
+  <!-- Settings Card -->
+  <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+    <!-- Tabs -->
+    <div class="border-b border-gray-100 px-6 pt-5 pb-0">
+      <div class="flex gap-1 overflow-x-auto pb-0" id="settingsTabs">
+        <button class="tab-btn active flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-sm font-medium text-gray-600 hover:text-primary-500" id="tab-info" onclick="showSettingsTab('info')">
+          <i data-feather="info" style="width:15px;height:15px;"></i> <span class="hidden sm:inline">Restaurant Info</span><span class="sm:hidden">Info</span>
+        </button>
+        <button class="tab-btn flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-sm font-medium text-gray-600 hover:text-primary-500" id="tab-tables" onclick="showSettingsTab('tables')">
+          <i data-feather="grid" style="width:15px;height:15px;"></i> <span class="hidden sm:inline">Tables</span><span class="sm:hidden">Tables</span>
+        </button>
+        <button class="tab-btn flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-sm font-medium text-gray-600 hover:text-primary-500" id="tab-payment" onclick="showSettingsTab('payment')">
+          <i data-feather="credit-card" style="width:15px;height:15px;"></i> <span class="hidden sm:inline">Payment</span><span class="sm:hidden">Pay</span>
+        </button>
+        <button class="tab-btn flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-sm font-medium text-gray-600 hover:text-primary-500" id="tab-address" onclick="showSettingsTab('address')">
+          <i data-feather="map-pin" style="width:15px;height:15px;"></i> <span class="hidden sm:inline">Address</span><span class="sm:hidden">Addr</span>
+        </button>
+        <button class="tab-btn flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-sm font-medium text-gray-600 hover:text-primary-500" id="tab-subscription" onclick="showSettingsTab('subscription')">
+          <i data-feather="zap" style="width:15px;height:15px;"></i> <span class="hidden sm:inline">Subscription</span><span class="sm:hidden">Sub</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Form -->
+    <form method="POST" action="" autocomplete="off">
+      {% csrf_token %}
+      {% if message %}
+      <div class="mx-6 mt-4 px-4 py-3 rounded-xl text-sm font-medium {% if message_type == 'success' %}bg-green-50 text-green-700 border border-green-100{% else %}bg-red-50 text-red-600 border border-red-100{% endif %}">
+        {{ message }}
+      </div>
+      {% endif %}
+
+      <div class="p-6">
+        <!-- Restaurant Info Tab -->
+        <div class="settings-tab active-tab" id="settings-info">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div>
+              <label class="block text-sm font-semibold text-primary-600 mb-1.5">Display Name</label>
+              <input type="text" name="display_name" value="{{ restaurant.display_name|default_if_none:'' }}" placeholder="e.g. Spice Villa"
+                class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 transition-all outline-none">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-primary-600 mb-1.5">Contact</label>
+              <input type="text" name="contact" value="{{ restaurant.contact|default_if_none:'' }}" placeholder="+91 9876543210"
+                class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 transition-all outline-none">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-primary-600 mb-1.5">GSTIN</label>
+              <input type="text" name="gstin" value="{{ restaurant.gstin|default_if_none:'' }}" placeholder="22AAAAA0000A1Z5"
+                class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 transition-all outline-none">
+            </div>
+          </div>
+        </div>
+
+        <!-- Tables Tab -->
+        <div class="settings-tab" id="settings-tables">
+          <div class="max-w-2xl mx-auto" id="tableManagementApp">
+            <div class="flex items-center gap-3 mb-5">
+              <div class="w-10 h-10 rounded-xl bg-primary-50 flex items-center justify-center">
+                <i data-feather="grid" style="width:20px;height:20px;" class="text-primary-500"></i>
+              </div>
+              <div>
+                <h3 class="font-bold text-gray-800">Table Management</h3>
+                <p class="text-xs text-gray-500">Add, rename, or remove tables for your restaurant</p>
+              </div>
+            </div>
+
+            <!-- Add Table -->
+            <div class="flex gap-2 mb-3">
+              <input type="text" id="new-table-name" placeholder="Table name (e.g. Terrace 1, VIP Room)"
+                class="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm font-semibold focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+              <button type="button" onclick="addTable()" class="px-4 py-2.5 rounded-xl bg-primary-500 text-white font-semibold text-sm hover:bg-primary-600 transition-all whitespace-nowrap">+ Add</button>
+            </div>
+
+            <!-- Quick Add -->
+            <div class="flex gap-2 mb-5">
+              <input type="number" id="quick-add-count" placeholder="Quick add numbered tables (e.g. 10)" min="1" max="200"
+                class="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm font-semibold focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+              <button type="button" onclick="quickAddTables()" class="px-4 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-semibold text-sm border border-gray-200 hover:bg-gray-200 transition-all whitespace-nowrap">Generate 1-N</button>
+            </div>
+
+            <!-- Current Tables Grid -->
+            <label class="block text-sm font-semibold text-primary-600 mb-2">Current Tables</label>
+            <div id="tables-grid" style="display:flex; flex-wrap:wrap; gap:8px; padding:12px; background:#f9fafb; border-radius:12px; border:1px solid #e5e7eb; min-height:60px;">
+              {% for t in tables %}
+              <div class="table-chip" id="table-chip-{{ t.id }}" style="display:flex; align-items:center; gap:6px; padding:6px 12px; background:#fff; border:1px solid #e5e7eb; border-radius:10px; font-size:14px;">
+                <span style="font-weight:600; color:#374151;">{{ t.name }}</span>
+                <button type="button" onclick="deleteTable('{{ t.id }}', '{{ t.name }}')" style="background:none; border:none; cursor:pointer; color:#ef4444; font-size:12px; padding:2px;" title="Remove">&times;</button>
+              </div>
+              {% empty %}
+              <p style="color:#9ca3af; font-size:13px; margin:0;">No tables yet. Add tables above to get started.</p>
+              {% endfor %}
+            </div>
+            <p class="text-xs text-gray-400 mt-2">Tables appear as buttons on the order page. Use custom names like "Terrace 1" or "VIP Room".</p>
+          </div>
+        </div>
+
+        <!-- Payment Tab -->
+        <div class="settings-tab" id="settings-payment">
+          <div class="max-w-md mx-auto">
+            <label class="block text-sm font-semibold text-primary-600 mb-1.5">UPI ID</label>
+            <input type="text" name="upi_id" value="{{ restaurant.upi_id|default_if_none:'' }}" placeholder="restaurant@upi"
+              class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 transition-all outline-none">
+          </div>
+        </div>
+
+        <!-- Address Tab -->
+        <div class="settings-tab" id="settings-address">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div class="md:col-span-3">
+              <label class="block text-sm font-semibold text-primary-600 mb-1.5">Street Address</label>
+              <input type="text" name="street_address" value="{{ restaurant.street_address|default_if_none:'' }}" placeholder="123 Main St"
+                class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 transition-all outline-none">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-primary-600 mb-1.5">Locality</label>
+              <input type="text" name="locality" value="{{ restaurant.locality|default_if_none:'' }}" placeholder="Andheri West"
+                class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 transition-all outline-none">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-primary-600 mb-1.5">City</label>
+              <input type="text" name="city" value="{{ restaurant.city|default_if_none:'' }}" placeholder="Mumbai"
+                class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 transition-all outline-none">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-primary-600 mb-1.5">District</label>
+              <input type="text" name="district" value="{{ restaurant.district|default_if_none:'' }}" placeholder="Mumbai Suburban"
+                class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 transition-all outline-none">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-primary-600 mb-1.5">State</label>
+              <input type="text" name="state" value="{{ restaurant.state|default_if_none:'' }}" placeholder="Maharashtra"
+                class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 transition-all outline-none">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-primary-600 mb-1.5">Country</label>
+              <input type="text" name="country" value="{{ restaurant.country|default_if_none:'' }}" placeholder="India"
+                class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 transition-all outline-none">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-primary-600 mb-1.5">Pincode</label>
+              <input type="text" name="pincode" value="{{ restaurant.pincode|default_if_none:'' }}" placeholder="400053"
+                class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 transition-all outline-none">
+            </div>
+          </div>
+        </div>
+
+        <!-- Subscription Tab -->
+        <div class="settings-tab" id="settings-subscription">
+          <div class="max-w-lg mx-auto">
+            <div class="bg-gradient-to-br from-gray-50 to-primary-50/30 rounded-2xl p-6 border border-gray-100">
+              <div class="flex items-center gap-3 mb-5">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-purple-400 flex items-center justify-center">
+                  <i data-feather="zap" style="width:20px;height:20px;color:#fff;"></i>
+                </div>
+                <div>
+                  <h3 class="font-bold text-primary-600">Subscription</h3>
+                  <p class="text-xs text-gray-500">Your plan & renewal info</p>
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div class="bg-white rounded-xl p-3">
+                  <p class="text-xs text-gray-500 mb-1">Plan</p>
+                  <p class="text-sm font-bold text-primary-600">{{ subscription.plan_name|default:"Free" }}</p>
+                </div>
+                <div class="bg-white rounded-xl p-3">
+                  <p class="text-xs text-gray-500 mb-1">Status</p>
+                  {% if subscription.is_active %}
+                    <span class="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">Active</span>
+                  {% else %}
+                    <span class="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-600">Inactive</span>
+                  {% endif %}
+                </div>
+                <div class="bg-white rounded-xl p-3">
+                  <p class="text-xs text-gray-500 mb-1">Start Date</p>
+                  <p class="text-sm font-medium">{{ subscription.start_date|date:"d M Y"|default:"--" }}</p>
+                </div>
+                <div class="bg-white rounded-xl p-3">
+                  <p class="text-xs text-gray-500 mb-1">Expiry Date</p>
+                  <p class="text-sm font-medium">{{ subscription.expiry_date|date:"d M Y"|default:"--" }}</p>
+                </div>
+                <div class="col-span-2 bg-white rounded-xl p-3">
+                  <p class="text-xs text-gray-500 mb-1">Renewal</p>
+                  {% if subscription.auto_renew %}
+                    <span class="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary-100 text-primary-600">Auto</span>
+                  {% else %}
+                    <span class="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">Manual</span>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Save Button -->
+      <div class="px-6 pb-6 flex justify-end">
+        <button type="submit" class="bg-gradient-to-r from-primary-500 to-purple-400 hover:from-primary-700 hover:to-purple-600 text-white font-semibold py-2.5 px-8 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md text-sm flex items-center gap-2">
+          <i data-feather="save" style="width:15px;height:15px;"></i> Save Changes
+        </button>
+      </div>
+    </form>
+
+    <!-- Live Bill Preview -->
+    <div class="border-t border-gray-100 px-6 py-6">
+      <h3 class="text-sm font-semibold text-gray-700 text-center mb-4">Live Bill Preview</h3>
+      <div id="bill-preview" class="mx-auto max-w-sm bg-white rounded-xl shadow-sm border border-gray-100 p-4 text-xs" style="font-family: Arial, sans-serif;">
+        <div class="text-center mb-2">
+          <h3 class="text-sm font-bold"><u id="preview-display-name">{{ restaurant.display_name|default:"Spice Villa" }}</u></h3>
+          <div class="text-xs leading-tight font-bold mt-1">
+            <span id="preview-address">{{ restaurant.street_address|default:"123 Main St" }}, {{ restaurant.locality|default:"Andheri West" }}, {{ restaurant.city|default:"Mumbai" }}, {{ restaurant.state|default:"Maharashtra" }}, {{ restaurant.pincode|default:"400053" }}</span><br/>
+            <span id="preview-contact">Mobile: {{ restaurant.contact|default:"+91 9876543210" }}</span><br/>
+            GSTIN: <u id="preview-gstin">{{ restaurant.gstin|default:"22AAAAA0000A1Z5" }}</u>
+          </div>
+          <hr class="my-2 border-dashed border-gray-800"/>
+        </div>
+        <table class="w-full text-xs font-bold mb-2">
+          <tr><td>Bill: <span class="font-normal">XXXXXX</span></td><td>Date: <span id="preview-date">{{ today|date:"d/m/Y" }}</span></td></tr>
+          <tr><td>Table No: <span class="font-normal">12</span></td><td>Time: <span id="preview-time">{{ now|date:"h:i A" }}</span></td></tr>
+          <tr><td>Customer: <span class="font-normal">-</span></td></tr>
+        </table>
+        <hr class="my-2 border-dashed border-gray-800"/>
+        <table class="w-full text-xs font-bold mb-2">
+          <thead><tr><th></th><th class="text-left">Item</th><th>Qty</th><th>Rate</th><th class="text-right">Amount</th></tr></thead>
+          <tbody>
+            <tr><td>1.</td><td class="text-left">Paneer Tikka</td><td>2(F)</td><td>220</td><td class="text-right">440.00</td></tr>
+            <tr><td>2.</td><td class="text-left">Butter Naan</td><td>4(F)</td><td>60</td><td class="text-right">240.00</td></tr>
+          </tbody>
+        </table>
+        <hr class="my-2 border-dashed border-gray-800"/>
+        <div class="flex items-start gap-2 mt-2">
+          <img id="preview-qr" src="https://api.qrserver.com/v1/create-qr-code/?size=90x90&data=upi://pay?pa={{ restaurant.upi_id|default:'restaurant@upi' }}" alt="UPI QR" class="w-20 h-20 rounded border border-gray-200" loading="lazy">
+          <div class="text-right flex-1 font-bold text-xs">
+            <p>SubTotal: ₹ 680.00</p>
+            <p>Net Amt: ₹ 680.00</p>
+          </div>
+        </div>
+        <hr class="my-2 border-dashed border-gray-800"/>
+        <p class="text-center font-bold text-xs">DinePay | strix.co.in</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  function updateBillPreview() {
+    document.getElementById('preview-display-name').textContent = document.querySelector('input[name="display_name"]').value || 'Spice Villa';
+    document.getElementById('preview-contact').textContent = 'Mobile: ' + (document.querySelector('input[name="contact"]').value || '+91 9876543210');
+    document.getElementById('preview-gstin').textContent = document.querySelector('input[name="gstin"]').value || '22AAAAA0000A1Z5';
+    let addr = [
+      document.querySelector('input[name="street_address"]').value,
+      document.querySelector('input[name="locality"]').value,
+      document.querySelector('input[name="city"]').value,
+      document.querySelector('input[name="state"]').value,
+      document.querySelector('input[name="pincode"]').value
+    ].filter(Boolean).join(', ');
+    document.getElementById('preview-address').textContent = addr || '123 Main St, Andheri West, Mumbai, Maharashtra, 400053';
+    var upi = document.querySelector('input[name="upi_id"]').value || 'restaurant@upi';
+    document.getElementById('preview-qr').src = 'https://api.qrserver.com/v1/create-qr-code/?size=90x90&data=upi://pay?pa=' + encodeURIComponent(upi);
+  }
+  document.addEventListener('DOMContentLoaded', function() {
+    ['display_name', 'contact', 'gstin', 'upi_id', 'street_address', 'locality', 'city', 'state', 'pincode'].forEach(function(name) {
+      var el = document.querySelector('input[name="'+name+'"]');
+      if (el) el.addEventListener('input', updateBillPreview);
+    });
+    updateBillPreview();
+  });
+  function showSettingsTab(tab) {
+    document.querySelectorAll('.settings-tab').forEach(el => el.classList.remove('active-tab'));
+    document.querySelectorAll('#settingsTabs .tab-btn').forEach(el => el.classList.remove('active'));
+    document.getElementById('settings-' + tab).classList.add('active-tab');
+    document.getElementById('tab-' + tab).classList.add('active');
+  }
+
+  function getCsrf() {
+    var c = document.cookie.match(/csrftoken=([^;]+)/);
+    if (c) return c[1];
+    var el = document.querySelector('input[name="csrfmiddlewaretoken"]');
+    return el ? el.value : '';
+  }
+
+  function refreshTablesGrid() {
+    fetch('/core/api/tables/', { headers: { 'X-CSRFToken': getCsrf() } })
+      .then(r => r.json())
+      .then(tables => {
+        var grid = document.getElementById('tables-grid');
+        if (!tables.length) {
+          grid.innerHTML = '<p style="color:#9ca3af;font-size:13px;margin:0;">No tables yet. Add tables above to get started.</p>';
+          return;
+        }
+        grid.innerHTML = tables.map(t =>
+          '<div class="table-chip" style="display:flex;align-items:center;gap:6px;padding:6px 12px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;font-size:14px;">' +
+            '<span style="font-weight:600;color:#374151;">' + t.name + '</span>' +
+            '<button type="button" onclick="deleteTable(\'' + t.id + '\',\'' + t.name.replace(/'/g, "\\'") + '\')" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:12px;padding:2px;" title="Remove">&times;</button>' +
+          '</div>'
+        ).join('');
+      });
+  }
+
+  function addTable() {
+    var input = document.getElementById('new-table-name');
+    var name = input.value.trim();
+    if (!name) return;
+    var btn = input.parentElement.querySelector('button');
+    btn.disabled = true; btn.textContent = 'Adding...';
+    fetch('/core/api/tables/', {
+      method: 'POST',
+      headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name })
+    }).then(r => {
+      btn.disabled = false; btn.textContent = '+ Add';
+      if (!r.ok) return r.json().catch(() => ({ error: 'Server error (' + r.status + ')' })).then(d => { showToast(d.error || d.detail || 'Failed (' + r.status + ')', 'error'); });
+      input.value = '';
+      showToast('Table added');
+      refreshTablesGrid();
+    }).catch(e => { btn.disabled = false; btn.textContent = '+ Add'; showToast('Network error: ' + e.message, 'error'); });
+  }
+
+  function deleteTable(id, name) {
+    if (!confirm('Remove table "' + name + '"?')) return;
+    fetch('/core/api/tables/' + id, {
+      method: 'DELETE',
+      headers: { 'X-CSRFToken': getCsrf() }
+    }).then(() => { showToast('Table removed'); refreshTablesGrid(); })
+    .catch(() => showToast('Failed to remove table', 'error'));
+  }
+
+  function quickAddTables() {
+    var input = document.getElementById('quick-add-count');
+    var count = parseInt(input.value);
+    if (!count || count < 1 || count > 200) { showToast('Enter a number between 1 and 200', 'warning'); return; }
+    var btn = input.parentElement.querySelector('button');
+    btn.disabled = true; btn.textContent = 'Adding...';
+    var promises = [];
+    for (var i = 1; i <= count; i++) {
+      promises.push(
+        fetch('/core/api/tables/', {
+          method: 'POST',
+          headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: String(i), display_order: i })
+        }).catch(() => {})
+      );
+    }
+    Promise.all(promises).then(() => {
+      btn.disabled = false; btn.textContent = 'Generate 1-N';
+      input.value = '';
+      showToast(count + ' tables added');
+      refreshTablesGrid();
+    });
+  }
+
+  document.getElementById('new-table-name')?.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); addTable(); }
+  });
+  document.getElementById('quick-add-count')?.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); quickAddTables(); }
+  });
+</script>
+{% endblock %}

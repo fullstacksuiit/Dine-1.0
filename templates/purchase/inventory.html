@@ -1,0 +1,638 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Inventory | DinePay{% endblock %}
+
+{% block breadcrumb %}
+<span class="breadcrumb-restaurant">{{ request.restaurant.display_name|default:request.restaurant.name|default:"DinePay" }}</span>
+<span class="breadcrumb-sep">/</span>
+<span class="breadcrumb-page">Inventory</span>
+{% endblock %}
+
+{% block inline_css %}
+<style>
+  @keyframes modalSlideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+  .modal-enter { animation: modalSlideUp 0.25s ease-out; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="purchaseApp" v-cloak class="max-w-7xl mx-auto px-4 py-2">
+
+  <!-- Page Header -->
+  <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 pb-3 border-b border-gray-100">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-primary-50 flex items-center justify-center">
+        <i data-feather="package" class="text-primary-500" style="width:20px;height:20px;"></i>
+      </div>
+      <div>
+        <h1 class="text-2xl font-bold text-gray-800">Inventory</h1>
+        <p class="text-xs text-gray-400">[[ items.length ]] item[[ items.length !== 1 ? 's' : '' ]] total</p>
+      </div>
+    </div>
+    <button class="mt-3 sm:mt-0 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-primary-500 hover:bg-primary-700 transition-colors shadow-sm inline-flex items-center gap-2" @click="openCreateModal">
+      <i data-feather="plus" style="width:16px;height:16px;"></i> Add Item
+    </button>
+  </div>
+
+  <!-- Filters Row -->
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-4">
+    <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+      <!-- Search -->
+      <div class="flex-1 w-full sm:w-auto">
+        <input type="text" v-model="searchQuery" placeholder="Search by name..."
+          class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+      </div>
+      <!-- Low Stock Toggle -->
+      <label class="inline-flex items-center gap-2 cursor-pointer select-none">
+        <input type="checkbox" v-model="showLowStockOnly" class="sr-only peer" @change="fetchItems">
+        <div class="relative w-10 h-5 bg-gray-200 peer-checked:bg-red-500 rounded-full transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:w-4 after:h-4 after:transition-transform peer-checked:after:translate-x-5"></div>
+        <span class="text-sm font-medium text-gray-600">Low Stock Only</span>
+      </label>
+    </div>
+  </div>
+
+  <!-- Summary Cards -->
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+      <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Total Items</p>
+      <p class="text-2xl font-bold text-gray-800">[[ items.length ]]</p>
+    </div>
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+      <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Low Stock</p>
+      <p class="text-2xl font-bold text-red-600">[[ lowStockCount ]]</p>
+    </div>
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+      <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Total Value</p>
+      <p class="text-2xl font-bold text-gray-800">[[ formatCurrency(totalStockValue) ]]</p>
+    </div>
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+      <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">OK Stock</p>
+      <p class="text-2xl font-bold text-green-600">[[ items.length - lowStockCount ]]</p>
+    </div>
+  </div>
+
+  <!-- Empty State -->
+  <div v-if="filteredItems.length === 0 && !loading" class="bg-white rounded-2xl border border-gray-100 shadow-sm py-16 text-center">
+    <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gray-50 mb-4">
+      <i data-feather="inbox" class="text-gray-300" style="width:28px;height:28px;"></i>
+    </div>
+    <p class="text-gray-400 text-sm" v-if="searchQuery">No items match "[[ searchQuery ]]"</p>
+    <p class="text-gray-400 text-sm" v-else-if="showLowStockOnly">No low-stock items found.</p>
+    <p class="text-gray-400 text-sm" v-else>No inventory items yet. Click "Add Item" to get started.</p>
+  </div>
+
+  <!-- Loading State -->
+  <div v-if="loading" class="bg-white rounded-2xl border border-gray-100 shadow-sm py-16 text-center">
+    <div class="inline-flex items-center gap-2 text-gray-400 text-sm">
+      <svg class="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+      Loading inventory...
+    </div>
+  </div>
+
+  <!-- Inventory Table -->
+  <div v-if="filteredItems.length > 0 && !loading" class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full">
+        <thead class="bg-gray-50 border-b border-gray-200">
+          <tr>
+            <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Name</th>
+            <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Unit</th>
+            <th class="text-right px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Current Stock</th>
+            <th class="text-right px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Low Threshold</th>
+            <th class="text-right px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Cost/Unit</th>
+            <th class="text-right px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Stock Value</th>
+            <th class="text-center px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+            <th class="text-center px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          <tr v-for="item in filteredItems" :key="item.id" class="hover:bg-gray-50/50 transition-colors cursor-pointer" @click="viewDetail(item.id)">
+            <td class="px-5 py-4">
+              <div class="font-semibold text-gray-800 text-sm">[[ item.name ]]</div>
+            </td>
+            <td class="px-5 py-4 text-sm text-gray-600">[[ item.unit ]]</td>
+            <td class="px-5 py-4 text-sm text-gray-800 font-semibold text-right">[[ formatNumber(item.current_stock) ]]</td>
+            <td class="px-5 py-4 text-sm text-gray-500 text-right">[[ formatNumber(item.low_stock_threshold) ]]</td>
+            <td class="px-5 py-4 text-sm text-gray-600 text-right">[[ formatCurrency(item.cost_per_unit) ]]</td>
+            <td class="px-5 py-4 text-sm text-gray-800 font-semibold text-right">[[ formatCurrency(item.current_stock * item.cost_per_unit) ]]</td>
+            <td class="px-5 py-4 text-center">
+              <span v-if="isLowStock(item)" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-700">
+                <i data-feather="alert-circle" style="width:12px;height:12px;"></i> Low
+              </span>
+              <span v-else class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-50 text-green-700">
+                <i data-feather="check-circle" style="width:12px;height:12px;"></i> OK
+              </span>
+            </td>
+            <td class="px-5 py-4 text-center" @click.stop>
+              <div class="inline-flex items-center gap-1">
+                <button class="p-1.5 rounded-lg text-gray-400 hover:text-primary-500 hover:bg-primary-50 transition-colors" @click="openStockEntryModal(item)" title="Add Stock Entry">
+                  <i data-feather="plus-circle" style="width:16px;height:16px;"></i>
+                </button>
+                <button class="p-1.5 rounded-lg text-gray-400 hover:text-primary-500 hover:bg-primary-50 transition-colors" @click="openEditModal(item)" title="Edit">
+                  <i data-feather="edit-2" style="width:16px;height:16px;"></i>
+                </button>
+                <button class="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors" @click="openDeleteModal(item)" title="Delete">
+                  <i data-feather="trash-2" style="width:16px;height:16px;"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ==================== DETAIL MODAL ==================== -->
+  <div v-if="showDetailModal" class="fixed inset-0 bg-gray-900/75 backdrop-blur-sm flex items-center justify-center z-[1000]" @click.self="showDetailModal = false">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] flex flex-col modal-enter">
+      <!-- Header -->
+      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <div>
+          <h3 class="text-lg font-bold text-gray-800">[[ detailItem.name ]]</h3>
+          <p class="text-xs text-gray-400">[[ detailItem.unit ]] | Cost: [[ formatCurrency(detailItem.cost_per_unit) ]]/unit</p>
+        </div>
+        <button class="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" @click="showDetailModal = false">
+          <i data-feather="x" style="width:20px;height:20px;"></i>
+        </button>
+      </div>
+
+      <!-- Detail Content -->
+      <div class="flex-1 overflow-y-auto px-6 py-4">
+        <!-- Stock Info Cards -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+          <div class="bg-gray-50 rounded-xl p-3 text-center">
+            <p class="text-xs text-gray-400 mb-0.5">Current Stock</p>
+            <p class="text-lg font-bold text-gray-800">[[ formatNumber(detailItem.current_stock) ]]</p>
+          </div>
+          <div class="bg-gray-50 rounded-xl p-3 text-center">
+            <p class="text-xs text-gray-400 mb-0.5">Threshold</p>
+            <p class="text-lg font-bold text-gray-800">[[ formatNumber(detailItem.low_stock_threshold) ]]</p>
+          </div>
+          <div class="bg-gray-50 rounded-xl p-3 text-center">
+            <p class="text-xs text-gray-400 mb-0.5">Cost/Unit</p>
+            <p class="text-lg font-bold text-gray-800">[[ formatCurrency(detailItem.cost_per_unit) ]]</p>
+          </div>
+          <div class="bg-gray-50 rounded-xl p-3 text-center">
+            <p class="text-xs text-gray-400 mb-0.5">Stock Value</p>
+            <p class="text-lg font-bold text-gray-800">[[ formatCurrency(detailItem.current_stock * detailItem.cost_per_unit) ]]</p>
+          </div>
+        </div>
+
+        <!-- Status -->
+        <div class="mb-5">
+          <span v-if="isLowStock(detailItem)" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-700">
+            <i data-feather="alert-circle" style="width:12px;height:12px;"></i> Low Stock - Reorder Needed
+          </span>
+          <span v-else class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-50 text-green-700">
+            <i data-feather="check-circle" style="width:12px;height:12px;"></i> Stock OK
+          </span>
+        </div>
+
+        <!-- Stock History -->
+        <div class="flex items-center justify-between mb-3">
+          <h4 class="text-sm font-bold text-gray-700">Stock History</h4>
+          <button class="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-primary-500 hover:bg-primary-700 transition-colors shadow-sm inline-flex items-center gap-1" @click="openStockEntryModal(detailItem)">
+            <i data-feather="plus" style="width:14px;height:14px;"></i> Add Stock Entry
+          </button>
+        </div>
+
+        <div v-if="detailItem.stock_history && detailItem.stock_history.length > 0" class="overflow-x-auto rounded-xl border border-gray-200">
+          <table class="w-full">
+            <thead class="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
+                <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</th>
+                <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Quantity</th>
+                <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Unit Cost</th>
+                <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Notes</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              <tr v-for="entry in detailItem.stock_history" :key="entry.id" class="hover:bg-gray-50/50">
+                <td class="px-4 py-3 text-sm text-gray-600">[[ formatDate(entry.created_at || entry.date) ]]</td>
+                <td class="px-4 py-3">
+                  <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold"
+                    :class="entryTypeClass(entry.entry_type)">
+                    [[ formatEntryType(entry.entry_type) ]]
+                  </span>
+                </td>
+                <td class="px-4 py-3 text-sm font-semibold text-right"
+                  :class="entry.quantity >= 0 ? 'text-green-600' : 'text-red-600'">
+                  [[ entry.quantity >= 0 ? '+' : '' ]][[ formatNumber(entry.quantity) ]]
+                </td>
+                <td class="px-4 py-3 text-sm text-gray-600 text-right">[[ entry.unit_cost ? formatCurrency(entry.unit_cost) : '-' ]]</td>
+                <td class="px-4 py-3 text-sm text-gray-500 max-w-[200px] truncate">[[ entry.notes || '-' ]]</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-else class="text-center py-8 text-sm text-gray-400">
+          <i data-feather="clock" class="mx-auto mb-2 text-gray-300" style="width:24px;height:24px;"></i>
+          <p>No stock history yet.</p>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="flex items-center justify-end gap-2 px-6 py-4 border-t border-gray-100">
+        <button class="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors" @click="openEditModal(detailItem); showDetailModal = false">
+          <i data-feather="edit-2" style="width:14px;height:14px;" class="inline-block mr-1"></i> Edit
+        </button>
+        <button class="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors" @click="showDetailModal = false">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== CREATE / EDIT MODAL ==================== -->
+  <div v-if="showFormModal" class="fixed inset-0 bg-gray-900/75 backdrop-blur-sm flex items-center justify-center z-[1000]" @click.self="showFormModal = false">
+    <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-lg mx-4 modal-enter">
+      <h4 class="text-xl font-bold text-gray-800 mb-5">[[ editMode ? 'Edit Item' : 'Add Inventory Item' ]]</h4>
+      <form @submit.prevent="editMode ? updateItem() : createItem()">
+        <!-- Name -->
+        <div class="mb-4">
+          <label class="block text-sm font-semibold text-primary-600 mb-1.5">Name</label>
+          <input type="text" v-model="formItem.name" required placeholder="e.g. Basmati Rice"
+            class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+        </div>
+
+        <!-- Unit -->
+        <div class="mb-4">
+          <label class="block text-sm font-semibold text-primary-600 mb-1.5">Unit</label>
+          <select v-model="formItem.unit" required
+            class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+            <option value="" disabled>Select unit</option>
+            <option v-for="u in unitChoices" :key="u" :value="u">[[ u ]]</option>
+          </select>
+        </div>
+
+        <!-- Low Stock Threshold -->
+        <div class="mb-4">
+          <label class="block text-sm font-semibold text-primary-600 mb-1.5">Low Stock Threshold</label>
+          <input type="number" v-model.number="formItem.low_stock_threshold" required min="0" step="any" placeholder="e.g. 10"
+            class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+        </div>
+
+        <!-- Cost per Unit -->
+        <div class="mb-5">
+          <label class="block text-sm font-semibold text-primary-600 mb-1.5">Cost per Unit</label>
+          <input type="number" v-model.number="formItem.cost_per_unit" required min="0" step="any" placeholder="e.g. 85.00"
+            class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+        </div>
+
+        <!-- Actions -->
+        <div class="flex items-center justify-end gap-3">
+          <button type="button" class="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors" @click="showFormModal = false">Cancel</button>
+          <button type="submit" class="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-primary-500 hover:bg-primary-700 transition-colors shadow-sm" :disabled="saving">
+            [[ saving ? 'Saving...' : (editMode ? 'Update' : 'Create') ]]
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== STOCK ENTRY MODAL ==================== -->
+  <div v-if="showStockEntryModal" class="fixed inset-0 bg-gray-900/75 backdrop-blur-sm flex items-center justify-center z-[1000]" @click.self="showStockEntryModal = false">
+    <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-lg mx-4 modal-enter">
+      <h4 class="text-xl font-bold text-gray-800 mb-1">Add Stock Entry</h4>
+      <p class="text-sm text-gray-400 mb-5">for <span class="font-semibold text-gray-600">[[ stockEntryItem.name ]]</span></p>
+      <form @submit.prevent="submitStockEntry">
+        <!-- Entry Type -->
+        <div class="mb-4">
+          <label class="block text-sm font-semibold text-primary-600 mb-1.5">Entry Type</label>
+          <select v-model="stockEntryForm.entry_type" required
+            class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+            <option value="" disabled>Select type</option>
+            <option v-for="t in entryTypeChoices" :key="t.value" :value="t.value">[[ t.label ]]</option>
+          </select>
+        </div>
+
+        <!-- Quantity -->
+        <div class="mb-4">
+          <label class="block text-sm font-semibold text-primary-600 mb-1.5">Quantity</label>
+          <input type="number" v-model.number="stockEntryForm.quantity" required min="0" step="any" placeholder="e.g. 25"
+            class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+        </div>
+
+        <!-- Notes -->
+        <div class="mb-5">
+          <label class="block text-sm font-semibold text-primary-600 mb-1.5">Notes</label>
+          <textarea v-model="stockEntryForm.notes" rows="3" placeholder="Optional notes about this entry..."
+            class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all resize-none"></textarea>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex items-center justify-end gap-3">
+          <button type="button" class="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors" @click="showStockEntryModal = false">Cancel</button>
+          <button type="submit" class="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-primary-500 hover:bg-primary-700 transition-colors shadow-sm" :disabled="saving">
+            [[ saving ? 'Saving...' : 'Add Entry' ]]
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== DELETE CONFIRMATION MODAL ==================== -->
+  <div v-if="showDeleteModal" class="fixed inset-0 bg-gray-900/75 backdrop-blur-sm flex items-center justify-center z-[1000]" @click.self="showDeleteModal = false">
+    <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md mx-4 text-center modal-enter">
+      <div class="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
+        <i data-feather="alert-triangle" class="text-red-500" style="width:24px;height:24px;"></i>
+      </div>
+      <h5 class="text-lg font-bold text-gray-800 mb-2">Delete "[[ deleteTarget.name ]]"?</h5>
+      <p class="text-sm text-gray-400 mb-6">This will permanently remove this inventory item and all its stock history. This action cannot be undone.</p>
+      <div class="flex items-center justify-center gap-3">
+        <button class="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors" @click="showDeleteModal = false">Cancel</button>
+        <button class="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors shadow-sm" @click="deleteItem" :disabled="saving">
+          [[ saving ? 'Deleting...' : 'Delete' ]]
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'assets/js/vue.min.js' %}"></script>
+<script src="{% static 'assets/js/axios.js' %}"></script>
+<script>
+(function() {
+  var API_BASE = '/purchase/api/inventory/';
+
+  axios.defaults.xsrfCookieName = 'csrftoken';
+  axios.defaults.xsrfHeaderName = 'X-CSRFToken';
+  axios.defaults.withCredentials = true;
+
+  new Vue({
+    el: '#purchaseApp',
+    delimiters: ['[[', ']]'],
+    data: {
+      items: [],
+      loading: false,
+      saving: false,
+      searchQuery: '',
+      showLowStockOnly: false,
+
+      // Detail modal
+      showDetailModal: false,
+      detailItem: {},
+
+      // Create/Edit modal
+      showFormModal: false,
+      editMode: false,
+      formItem: {
+        name: '',
+        unit: '',
+        low_stock_threshold: 0,
+        cost_per_unit: 0
+      },
+
+      // Stock entry modal
+      showStockEntryModal: false,
+      stockEntryItem: {},
+      stockEntryForm: {
+        entry_type: '',
+        quantity: null,
+        notes: ''
+      },
+
+      // Delete modal
+      showDeleteModal: false,
+      deleteTarget: {},
+
+      // Choices
+      unitChoices: ['KG', 'GRAM', 'LITRE', 'ML', 'PIECE', 'PACKET', 'DOZEN', 'BOX'],
+      entryTypeChoices: [
+        { value: 'MANUAL_ADD', label: 'Manual Add' },
+        { value: 'MANUAL_REMOVE', label: 'Manual Remove' },
+        { value: 'USAGE', label: 'Usage' },
+        { value: 'WASTAGE', label: 'Wastage' },
+        { value: 'ADJUSTMENT', label: 'Adjustment' }
+      ]
+    },
+
+    computed: {
+      filteredItems: function() {
+        var self = this;
+        if (!self.searchQuery) return self.items;
+        var q = self.searchQuery.toLowerCase();
+        return self.items.filter(function(item) {
+          return item.name.toLowerCase().indexOf(q) !== -1;
+        });
+      },
+      lowStockCount: function() {
+        var self = this;
+        return self.items.filter(function(item) {
+          return self.isLowStock(item);
+        }).length;
+      },
+      totalStockValue: function() {
+        return this.items.reduce(function(sum, item) {
+          return sum + (item.current_stock * item.cost_per_unit);
+        }, 0);
+      }
+    },
+
+    mounted: function() {
+      this.fetchItems();
+      this.replaceIcons();
+    },
+
+    updated: function() {
+      this.replaceIcons();
+    },
+
+    methods: {
+      replaceIcons: function() {
+        this.$nextTick(function() {
+          if (window.feather) window.feather.replace();
+        });
+      },
+
+      // ---- Formatting helpers ----
+      formatCurrency: function(val) {
+        if (val === null || val === undefined) return '-';
+        return '\u20B9 ' + parseFloat(val).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      },
+      formatNumber: function(val) {
+        if (val === null || val === undefined) return '-';
+        var n = parseFloat(val);
+        if (Number.isInteger(n)) return n.toLocaleString('en-IN');
+        return n.toLocaleString('en-IN', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+      },
+      formatDate: function(dateStr) {
+        if (!dateStr) return '-';
+        var d = new Date(dateStr);
+        return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+      },
+      formatEntryType: function(type) {
+        if (!type) return '-';
+        return type.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+      },
+      entryTypeClass: function(type) {
+        var map = {
+          'MANUAL_ADD': 'bg-green-50 text-green-700',
+          'MANUAL_REMOVE': 'bg-red-50 text-red-700',
+          'USAGE': 'bg-amber-50 text-amber-700',
+          'WASTAGE': 'bg-red-50 text-red-600',
+          'ADJUSTMENT': 'bg-blue-50 text-blue-700'
+        };
+        return map[type] || 'bg-gray-50 text-gray-600';
+      },
+      isLowStock: function(item) {
+        return item.current_stock <= item.low_stock_threshold;
+      },
+
+      // ---- API calls ----
+      fetchItems: function() {
+        var self = this;
+        self.loading = true;
+        var url = self.showLowStockOnly ? API_BASE + 'low-stock/' : API_BASE;
+        axios.get(url)
+          .then(function(res) {
+            self.items = res.data;
+          })
+          .catch(function() {
+            showToast('Failed to load inventory', 'error');
+          })
+          .finally(function() {
+            self.loading = false;
+          });
+      },
+
+      viewDetail: function(id) {
+        var self = this;
+        axios.get(API_BASE + id + '/')
+          .then(function(res) {
+            self.detailItem = res.data;
+            self.showDetailModal = true;
+          })
+          .catch(function() {
+            showToast('Failed to load item details', 'error');
+          });
+      },
+
+      // ---- Create ----
+      openCreateModal: function() {
+        this.editMode = false;
+        this.formItem = {
+          name: '',
+          unit: '',
+          low_stock_threshold: 0,
+          cost_per_unit: 0
+        };
+        this.showFormModal = true;
+      },
+      createItem: function() {
+        var self = this;
+        self.saving = true;
+        axios.post(API_BASE, self.formItem)
+          .then(function() {
+            self.showFormModal = false;
+            self.fetchItems();
+            showToast('Item created successfully');
+          })
+          .catch(function(err) {
+            var msg = (err.response && err.response.data) ? (err.response.data.error || err.response.data.detail || JSON.stringify(err.response.data)) : 'Failed to create item';
+            showToast(msg, 'error');
+          })
+          .finally(function() {
+            self.saving = false;
+          });
+      },
+
+      // ---- Edit ----
+      openEditModal: function(item) {
+        this.editMode = true;
+        this.formItem = {
+          id: item.id,
+          name: item.name,
+          unit: item.unit,
+          low_stock_threshold: item.low_stock_threshold,
+          cost_per_unit: item.cost_per_unit
+        };
+        this.showFormModal = true;
+      },
+      updateItem: function() {
+        var self = this;
+        self.saving = true;
+        axios.put(API_BASE + self.formItem.id + '/', self.formItem)
+          .then(function() {
+            self.showFormModal = false;
+            self.fetchItems();
+            showToast('Item updated successfully');
+            // Refresh detail view if open
+            if (self.showDetailModal && self.detailItem.id === self.formItem.id) {
+              self.viewDetail(self.formItem.id);
+            }
+          })
+          .catch(function(err) {
+            var msg = (err.response && err.response.data) ? (err.response.data.error || err.response.data.detail || JSON.stringify(err.response.data)) : 'Failed to update item';
+            showToast(msg, 'error');
+          })
+          .finally(function() {
+            self.saving = false;
+          });
+      },
+
+      // ---- Delete ----
+      openDeleteModal: function(item) {
+        this.deleteTarget = { id: item.id, name: item.name };
+        this.showDeleteModal = true;
+      },
+      deleteItem: function() {
+        var self = this;
+        self.saving = true;
+        axios.delete(API_BASE + self.deleteTarget.id + '/')
+          .then(function() {
+            self.showDeleteModal = false;
+            self.fetchItems();
+            showToast('Item deleted successfully');
+            // Close detail if open for deleted item
+            if (self.showDetailModal && self.detailItem.id === self.deleteTarget.id) {
+              self.showDetailModal = false;
+            }
+          })
+          .catch(function() {
+            showToast('Failed to delete item', 'error');
+          })
+          .finally(function() {
+            self.saving = false;
+          });
+      },
+
+      // ---- Stock Entry ----
+      openStockEntryModal: function(item) {
+        this.stockEntryItem = { id: item.id, name: item.name };
+        this.stockEntryForm = {
+          entry_type: '',
+          quantity: null,
+          notes: ''
+        };
+        this.showStockEntryModal = true;
+      },
+      submitStockEntry: function() {
+        var self = this;
+        self.saving = true;
+        axios.post(API_BASE + self.stockEntryItem.id + '/stock-entry/', self.stockEntryForm)
+          .then(function() {
+            self.showStockEntryModal = false;
+            self.fetchItems();
+            showToast('Stock entry added successfully');
+            // Refresh detail view if open
+            if (self.showDetailModal && self.detailItem.id === self.stockEntryItem.id) {
+              self.viewDetail(self.stockEntryItem.id);
+            }
+          })
+          .catch(function(err) {
+            var msg = (err.response && err.response.data) ? (err.response.data.error || err.response.data.detail || JSON.stringify(err.response.data)) : 'Failed to add stock entry';
+            showToast(msg, 'error');
+          })
+          .finally(function() {
+            self.saving = false;
+          });
+      }
+    }
+  });
+})();
+</script>
+{% endblock %}

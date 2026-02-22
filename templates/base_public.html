@@ -1,0 +1,77 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#6c63ff">
+  <title>{% block title %}DinePay{% endblock %}</title>
+  <link rel="shortcut icon" href="{% static 'assets/images/logo.png' %}">
+  {% block meta %}{% endblock %}
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: {
+              50: '#f5f3ff',
+              100: '#e0e7ff',
+              200: '#c7d2fe',
+              300: '#a5b4fc',
+              400: '#818cf8',
+              500: '#6c63ff',
+              600: '#5f6cff',
+              700: '#4f46e5',
+              800: '#3730a3',
+              900: '#312e81',
+            },
+            accent: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              200: '#bbf7d0',
+              300: '#86efac',
+              400: '#43cea2',
+              500: '#22c55e',
+              600: '#16a34a',
+            },
+          },
+          fontFamily: {
+            sans: ['Inter', 'Segoe UI', 'Arial', 'sans-serif'],
+            display: ['Playfair Display', 'serif'],
+          },
+        },
+      },
+    }
+  </script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  {% block extra_css %}{% endblock %}
+  {% block inline_css %}{% endblock %}
+</head>
+<body class="bg-gray-50 font-sans text-gray-900 min-h-screen antialiased">
+  {% block body %}
+  <div class="min-h-screen flex flex-col">
+    <!-- Main content -->
+    <main class="flex-1">
+      {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    {% block footer %}
+    <footer class="py-6 text-center text-sm text-gray-400">
+      <p>&copy; 2026 DinePay | A <a href="http://strix.co.in" class="text-primary-500 hover:text-primary-700 transition-colors">Strix</a> Venture</p>
+    </footer>
+    {% endblock %}
+  </div>
+  {% endblock %}
+
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

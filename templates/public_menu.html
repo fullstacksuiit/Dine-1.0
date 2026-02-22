@@ -1,0 +1,56 @@
+{% extends "base_public.html" %}
+{% load static %}
+
+{% block title %}{{ restaurant.display_name }} Menu{% endblock %}
+
+{% block extra_css %}
+<link href="https://fonts.googleapis.com/css?family=Playfair+Display:700,900&display=swap" rel="stylesheet">
+{% endblock %}
+
+{% block footer %}{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto my-8 px-4">
+  <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+    <!-- Header -->
+    <div class="px-6 pt-8 pb-4 text-center border-b border-gray-50">
+      <h1 class="font-display text-3xl font-black text-gray-900 tracking-wide">{{ restaurant.display_name }}</h1>
+      <p class="text-sm text-gray-400 mt-1 uppercase tracking-widest font-medium">Menu</p>
+    </div>
+
+    <!-- Menu Content -->
+    <div class="px-6 py-4">
+      {% for course, dishes in courses.items %}
+        <div class="mb-6 last:mb-0">
+          <h2 class="font-display text-lg font-bold text-gray-800 tracking-wide pb-2 mb-3 border-b border-gray-100">{{ course }}</h2>
+          <ul class="space-y-0">
+            {% for dish in dishes %}
+              <li class="flex items-end justify-between py-2 {% if not forloop.last %}border-b border-dotted border-gray-200{% endif %}">
+                <span class="font-display text-base text-gray-800 truncate max-w-[70%]">{{ dish.name }}</span>
+                <span class="text-sm font-bold text-primary-700 bg-primary-50 rounded-md px-2.5 py-0.5 ml-2 whitespace-nowrap shadow-sm">₹{{ dish.restaurant_full_price|floatformat:2 }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% empty %}
+        <div class="text-center text-gray-400 py-12">No menu items found.</div>
+      {% endfor %}
+    </div>
+
+    <!-- Footer -->
+    <div class="px-6 py-5 text-center border-t border-gray-50">
+      <p class="text-sm text-gray-400">DinePay | A <a href="https://strix.co.in/" class="text-primary-500 hover:text-primary-700 transition-colors">Strix</a> Venture</p>
+      {% if restaurant.contact or restaurant.full_address %}
+        <div class="mt-3 text-sm text-gray-400 space-y-1">
+          {% if restaurant.contact %}
+            <p>Contact: <a href="tel:{{ restaurant.contact }}" class="text-primary-500 hover:text-primary-700 transition-colors">{{ restaurant.contact }}</a></p>
+          {% endif %}
+          {% if restaurant.full_address %}
+            <p class="text-gray-500">{{ restaurant.full_address|linebreaksbr }}</p>
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

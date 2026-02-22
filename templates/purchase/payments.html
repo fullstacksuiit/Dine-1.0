@@ -1,0 +1,645 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Payments | DinePay{% endblock %}
+
+{% block breadcrumb %}
+<span class="breadcrumb-restaurant">{{ request.restaurant.display_name|default:request.restaurant.name|default:"DinePay" }}</span>
+<span class="breadcrumb-sep">/</span>
+<span class="breadcrumb-page">Payments</span>
+{% endblock %}
+
+{% block content %}
+<div id="purchaseApp" v-cloak>
+
+  <!-- Loading State -->
+  <div v-if="loading" class="flex items-center justify-center py-32">
+    <div class="text-center">
+      <div class="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-primary-50 mb-4 animate-pulse">
+        <i data-feather="dollar-sign" class="text-primary-400 w-[24px] h-[24px]"></i>
+      </div>
+      <p class="text-sm font-semibold text-gray-400">Loading payments...</p>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div v-else class="max-w-7xl mx-auto px-4 py-4">
+
+    <!-- Page Header -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 pb-4 border-b border-gray-100">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-primary-50 flex items-center justify-center">
+          <i data-feather="dollar-sign" class="text-primary-500 w-[20px] h-[20px]"></i>
+        </div>
+        <div>
+          <h1 class="text-2xl font-bold text-gray-800">Payments</h1>
+          <p class="text-xs text-gray-400 mt-0.5">Manage vendor payments and customer receipts</p>
+        </div>
+      </div>
+      <button @click="openCreateModal()" class="mt-3 sm:mt-0 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-primary-500 hover:bg-primary-700 transition-colors shadow-sm inline-flex items-center gap-2">
+        <i data-feather="plus" class="w-[16px] h-[16px]"></i>
+        Record Payment
+      </button>
+    </div>
+
+    <!-- Filter Tabs -->
+    <div class="flex items-center gap-6 border-b border-gray-200 mb-6">
+      <button
+        @click="filterType = ''"
+        :class="filterType === '' ? 'border-b-2 border-primary-500 text-primary-600 font-semibold' : 'text-gray-500 hover:text-gray-700'"
+        class="pb-3 text-sm transition-colors">
+        All
+      </button>
+      <button
+        @click="filterType = 'VENDOR_PAYMENT'"
+        :class="filterType === 'VENDOR_PAYMENT' ? 'border-b-2 border-primary-500 text-primary-600 font-semibold' : 'text-gray-500 hover:text-gray-700'"
+        class="pb-3 text-sm transition-colors">
+        Vendor Payments
+      </button>
+      <button
+        @click="filterType = 'CUSTOMER_RECEIPT'"
+        :class="filterType === 'CUSTOMER_RECEIPT' ? 'border-b-2 border-primary-500 text-primary-600 font-semibold' : 'text-gray-500 hover:text-gray-700'"
+        class="pb-3 text-sm transition-colors">
+        Customer Receipts
+      </button>
+    </div>
+
+    <!-- Payments Table -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr class="bg-gray-50 border-b border-gray-200">
+              <th class="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
+              <th class="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</th>
+              <th class="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Vendor/Customer</th>
+              <th class="text-right px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
+              <th class="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Payment Mode</th>
+              <th class="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Reference #</th>
+              <th class="text-center px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr v-if="payments.length === 0">
+              <td colspan="7" class="px-6 py-12 text-center">
+                <div class="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gray-50 mb-3">
+                  <i data-feather="inbox" class="text-gray-300 w-[24px] h-[24px]"></i>
+                </div>
+                <p class="text-sm font-semibold text-gray-400">No payments found</p>
+                <p class="text-xs text-gray-300 mt-1">Record your first payment to get started</p>
+              </td>
+            </tr>
+            <tr v-for="payment in payments" :key="payment.id" class="hover:bg-gray-50/50 transition-colors">
+              <td class="px-6 py-3 text-sm text-gray-700">[[ formatDate(payment.payment_date) ]]</td>
+              <td class="px-6 py-3">
+                <span v-if="payment.payment_type === 'VENDOR_PAYMENT'" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700">
+                  Vendor Payment
+                </span>
+                <span v-else-if="payment.payment_type === 'CUSTOMER_RECEIPT'" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">
+                  Customer Receipt
+                </span>
+              </td>
+              <td class="px-6 py-3 text-sm font-medium text-gray-700">
+                [[ payment.vendor_name || payment.customer_name || '-' ]]
+              </td>
+              <td class="px-6 py-3 text-sm font-semibold text-gray-800 text-right">[[ formatCurrency(payment.amount) ]]</td>
+              <td class="px-6 py-3 text-sm text-gray-600">[[ formatPaymentMode(payment.payment_mode) ]]</td>
+              <td class="px-6 py-3 text-sm text-gray-500">[[ payment.reference_number || '-' ]]</td>
+              <td class="px-6 py-3 text-center">
+                <div class="inline-flex items-center gap-1">
+                  <button @click="viewPayment(payment.id)" class="p-1.5 rounded-lg hover:bg-primary-50 text-gray-400 hover:text-primary-600 transition-colors" title="View Details">
+                    <i data-feather="eye" class="w-[16px] h-[16px]"></i>
+                  </button>
+                  <button @click="confirmDelete(payment)" class="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors" title="Delete">
+                    <i data-feather="trash-2" class="w-[16px] h-[16px]"></i>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Create/Record Payment Modal -->
+  <div v-if="showCreateModal" class="fixed inset-0 bg-gray-900/75 backdrop-blur-sm flex items-center justify-center z-[1000]" @click.self="closeCreateModal()">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <h2 class="text-lg font-bold text-gray-800">Record Payment</h2>
+        <button @click="closeCreateModal()" class="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
+          <i data-feather="x" class="w-[18px] h-[18px]"></i>
+        </button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="px-6 py-5 space-y-4">
+
+        <!-- Payment Type -->
+        <div>
+          <label class="block text-sm font-semibold text-primary-600 mb-1.5">Payment Type</label>
+          <div class="flex items-center gap-6">
+            <label class="inline-flex items-center gap-2 cursor-pointer">
+              <input type="radio" v-model="form.payment_type" value="VENDOR_PAYMENT" class="w-4 h-4 text-primary-500 border-gray-300 focus:ring-primary-500">
+              <span class="text-sm font-medium text-gray-700">Vendor Payment</span>
+            </label>
+            <label class="inline-flex items-center gap-2 cursor-pointer">
+              <input type="radio" v-model="form.payment_type" value="CUSTOMER_RECEIPT" class="w-4 h-4 text-primary-500 border-gray-300 focus:ring-primary-500">
+              <span class="text-sm font-medium text-gray-700">Customer Receipt</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Vendor Dropdown (shown for VENDOR_PAYMENT) -->
+        <div v-if="form.payment_type === 'VENDOR_PAYMENT'">
+          <label class="block text-sm font-semibold text-primary-600 mb-1.5">Vendor</label>
+          <select v-model="form.vendor_id" @change="onVendorChange()" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+            <option value="">Select a vendor</option>
+            <option v-for="vendor in vendors" :key="vendor.id" :value="vendor.id">[[ vendor.name ]]</option>
+          </select>
+        </div>
+
+        <!-- Invoice Dropdown (shown for VENDOR_PAYMENT when vendor is selected) -->
+        <div v-if="form.payment_type === 'VENDOR_PAYMENT' && form.vendor_id">
+          <label class="block text-sm font-semibold text-primary-600 mb-1.5">Invoice (Optional)</label>
+          <select v-model="form.purchase_invoice_id" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+            <option value="">No specific invoice</option>
+            <option v-for="inv in vendorInvoices" :key="inv.id" :value="inv.id">[[ inv.invoice_number ]] - [[ formatCurrency(inv.total_amount || inv.balance_due) ]]</option>
+          </select>
+        </div>
+
+        <!-- Customer Dropdown (shown for CUSTOMER_RECEIPT) -->
+        <div v-if="form.payment_type === 'CUSTOMER_RECEIPT'">
+          <label class="block text-sm font-semibold text-primary-600 mb-1.5">Customer</label>
+          <select v-model="form.customer_id" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+            <option value="">Select a customer</option>
+            <option v-for="customer in customers" :key="customer.id" :value="customer.id">[[ customer.name ]]</option>
+          </select>
+        </div>
+
+        <!-- Amount -->
+        <div>
+          <label class="block text-sm font-semibold text-primary-600 mb-1.5">Amount</label>
+          <input type="number" v-model="form.amount" step="0.01" min="0" placeholder="0.00" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+        </div>
+
+        <!-- Payment Mode -->
+        <div>
+          <label class="block text-sm font-semibold text-primary-600 mb-1.5">Payment Mode</label>
+          <select v-model="form.payment_mode" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+            <option value="">Select payment mode</option>
+            <option value="CASH">Cash</option>
+            <option value="BANK_TRANSFER">Bank Transfer</option>
+            <option value="UPI">UPI</option>
+            <option value="CHEQUE">Cheque</option>
+            <option value="OTHER">Other</option>
+          </select>
+        </div>
+
+        <!-- Payment Date -->
+        <div>
+          <label class="block text-sm font-semibold text-primary-600 mb-1.5">Payment Date</label>
+          <input type="date" v-model="form.payment_date" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+        </div>
+
+        <!-- Reference Number -->
+        <div>
+          <label class="block text-sm font-semibold text-primary-600 mb-1.5">Reference Number</label>
+          <input type="text" v-model="form.reference_number" placeholder="e.g. TXN123456" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+        </div>
+
+        <!-- Notes -->
+        <div>
+          <label class="block text-sm font-semibold text-primary-600 mb-1.5">Notes</label>
+          <textarea v-model="form.notes" rows="3" placeholder="Optional notes..." class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all resize-none"></textarea>
+        </div>
+
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100">
+        <button @click="closeCreateModal()" class="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">
+          Cancel
+        </button>
+        <button @click="createPayment()" :disabled="submitting" class="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-primary-500 hover:bg-primary-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2">
+          <span v-if="submitting" class="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+          [[ submitting ? 'Saving...' : 'Record Payment' ]]
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- View Payment Detail Modal -->
+  <div v-if="showDetailModal" class="fixed inset-0 bg-gray-900/75 backdrop-blur-sm flex items-center justify-center z-[1000]" @click.self="closeDetailModal()">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <h2 class="text-lg font-bold text-gray-800">Payment Details</h2>
+        <button @click="closeDetailModal()" class="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
+          <i data-feather="x" class="w-[18px] h-[18px]"></i>
+        </button>
+      </div>
+
+      <!-- Loading -->
+      <div v-if="detailLoading" class="flex items-center justify-center py-12">
+        <div class="inline-block w-6 h-6 border-2 border-primary-200 border-t-primary-500 rounded-full animate-spin"></div>
+      </div>
+
+      <!-- Detail Content -->
+      <div v-else-if="selectedPayment" class="px-6 py-5 space-y-4">
+
+        <!-- Type Badge -->
+        <div class="flex items-center gap-3">
+          <span v-if="selectedPayment.payment_type === 'VENDOR_PAYMENT'" class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-50 text-red-700">
+            Vendor Payment
+          </span>
+          <span v-else-if="selectedPayment.payment_type === 'CUSTOMER_RECEIPT'" class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700">
+            Customer Receipt
+          </span>
+        </div>
+
+        <!-- Detail Fields -->
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Date</p>
+            <p class="text-sm font-medium text-gray-800">[[ formatDate(selectedPayment.payment_date) ]]</p>
+          </div>
+          <div>
+            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Amount</p>
+            <p class="text-lg font-bold text-gray-800">[[ formatCurrency(selectedPayment.amount) ]]</p>
+          </div>
+          <div>
+            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">
+              [[ selectedPayment.payment_type === 'VENDOR_PAYMENT' ? 'Vendor' : 'Customer' ]]
+            </p>
+            <p class="text-sm font-medium text-gray-800">[[ selectedPayment.vendor_name || selectedPayment.customer_name || '-' ]]</p>
+          </div>
+          <div>
+            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Payment Mode</p>
+            <p class="text-sm font-medium text-gray-800">[[ formatPaymentMode(selectedPayment.payment_mode) ]]</p>
+          </div>
+          <div>
+            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Reference #</p>
+            <p class="text-sm font-medium text-gray-800">[[ selectedPayment.reference_number || '-' ]]</p>
+          </div>
+          <div v-if="selectedPayment.purchase_invoice_number">
+            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Invoice</p>
+            <p class="text-sm font-medium text-gray-800">[[ selectedPayment.purchase_invoice_number ]]</p>
+          </div>
+        </div>
+
+        <!-- Notes -->
+        <div v-if="selectedPayment.notes">
+          <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Notes</p>
+          <p class="text-sm text-gray-600 bg-gray-50 rounded-xl px-4 py-3">[[ selectedPayment.notes ]]</p>
+        </div>
+
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100">
+        <button @click="closeDetailModal()" class="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div v-if="showDeleteModal" class="fixed inset-0 bg-gray-900/75 backdrop-blur-sm flex items-center justify-center z-[1000]" @click.self="closeDeleteModal()">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4">
+      <!-- Modal Header -->
+      <div class="px-6 py-5 text-center">
+        <div class="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-red-50 mb-4">
+          <i data-feather="alert-triangle" class="text-red-500 w-[24px] h-[24px]"></i>
+        </div>
+        <h3 class="text-lg font-bold text-gray-800 mb-2">Delete Payment</h3>
+        <p class="text-sm text-gray-500">Are you sure you want to delete this payment of <strong>[[ formatCurrency(paymentToDelete ? paymentToDelete.amount : 0) ]]</strong>? This action cannot be undone.</p>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="flex items-center justify-center gap-3 px-6 py-4 border-t border-gray-100">
+        <button @click="closeDeleteModal()" class="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">
+          Cancel
+        </button>
+        <button @click="deletePayment()" :disabled="submitting" class="px-4 py-2 rounded-lg text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2">
+          <span v-if="submitting" class="inline-block w-4 h-4 border-2 border-red-300 border-t-red-600 rounded-full animate-spin"></span>
+          [[ submitting ? 'Deleting...' : 'Delete Payment' ]]
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'assets/js/vue.min.js' %}"></script>
+<script src="{% static 'assets/js/axios.js' %}"></script>
+<script>
+new Vue({
+  el: '#purchaseApp',
+  delimiters: ['[[', ']]'],
+  data: {
+    loading: true,
+    submitting: false,
+    payments: [],
+    filterType: '',
+    vendors: [],
+    customers: [],
+    vendorInvoices: [],
+
+    // Create modal
+    showCreateModal: false,
+    form: {
+      payment_type: 'VENDOR_PAYMENT',
+      vendor_id: '',
+      customer_id: '',
+      purchase_invoice_id: '',
+      amount: '',
+      payment_mode: '',
+      payment_date: '',
+      reference_number: '',
+      notes: ''
+    },
+
+    // Detail modal
+    showDetailModal: false,
+    detailLoading: false,
+    selectedPayment: null,
+
+    // Delete modal
+    showDeleteModal: false,
+    paymentToDelete: null
+  },
+  watch: {
+    filterType: function() {
+      this.fetchPayments();
+    }
+  },
+  mounted: function() {
+    this.form.payment_date = this.todayDate();
+    this.fetchPayments();
+  },
+  methods: {
+    todayDate: function() {
+      var d = new Date();
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    },
+
+    fetchPayments: function() {
+      var vm = this;
+      var url = '/purchase/api/payments/';
+      if (vm.filterType) {
+        url += '?payment_type=' + vm.filterType;
+      }
+      axios.get(url)
+        .then(function(res) {
+          vm.payments = res.data.results || res.data;
+          vm.loading = false;
+          vm.$nextTick(function() {
+            if (window.feather) feather.replace();
+          });
+        })
+        .catch(function(err) {
+          showToast('Failed to load payments', 'error');
+          vm.loading = false;
+          vm.$nextTick(function() {
+            if (window.feather) feather.replace();
+          });
+        });
+    },
+
+    fetchVendors: function() {
+      var vm = this;
+      axios.get('/purchase/api/vendors/')
+        .then(function(res) {
+          vm.vendors = res.data.results || res.data;
+        })
+        .catch(function() {
+          showToast('Failed to load vendors', 'error');
+        });
+    },
+
+    fetchCustomers: function() {
+      var vm = this;
+      axios.get('/purchase/api/customers/')
+        .then(function(res) {
+          vm.customers = res.data.results || res.data;
+        })
+        .catch(function() {
+          showToast('Failed to load customers', 'error');
+        });
+    },
+
+    fetchVendorInvoices: function(vendorId) {
+      var vm = this;
+      if (!vendorId) {
+        vm.vendorInvoices = [];
+        return;
+      }
+      axios.get('/purchase/api/purchase-invoices/?status=PENDING&status=PARTIALLY_PAID&vendor=' + vendorId)
+        .then(function(res) {
+          vm.vendorInvoices = res.data.results || res.data;
+        })
+        .catch(function() {
+          vm.vendorInvoices = [];
+        });
+    },
+
+    onVendorChange: function() {
+      this.form.purchase_invoice_id = '';
+      this.fetchVendorInvoices(this.form.vendor_id);
+    },
+
+    openCreateModal: function() {
+      this.form = {
+        payment_type: 'VENDOR_PAYMENT',
+        vendor_id: '',
+        customer_id: '',
+        purchase_invoice_id: '',
+        amount: '',
+        payment_mode: '',
+        payment_date: this.todayDate(),
+        reference_number: '',
+        notes: ''
+      };
+      this.vendorInvoices = [];
+      this.showCreateModal = true;
+      this.fetchVendors();
+      this.fetchCustomers();
+      this.$nextTick(function() {
+        if (window.feather) feather.replace();
+      });
+    },
+
+    closeCreateModal: function() {
+      this.showCreateModal = false;
+    },
+
+    createPayment: function() {
+      var vm = this;
+
+      // Validation
+      if (!vm.form.payment_type) {
+        showToast('Please select a payment type', 'error');
+        return;
+      }
+      if (vm.form.payment_type === 'VENDOR_PAYMENT' && !vm.form.vendor_id) {
+        showToast('Please select a vendor', 'error');
+        return;
+      }
+      if (vm.form.payment_type === 'CUSTOMER_RECEIPT' && !vm.form.customer_id) {
+        showToast('Please select a customer', 'error');
+        return;
+      }
+      if (!vm.form.amount || parseFloat(vm.form.amount) <= 0) {
+        showToast('Please enter a valid amount', 'error');
+        return;
+      }
+      if (!vm.form.payment_mode) {
+        showToast('Please select a payment mode', 'error');
+        return;
+      }
+      if (!vm.form.payment_date) {
+        showToast('Please select a payment date', 'error');
+        return;
+      }
+
+      var payload = {
+        payment_type: vm.form.payment_type,
+        amount: parseFloat(vm.form.amount),
+        payment_mode: vm.form.payment_mode,
+        payment_date: vm.form.payment_date,
+        reference_number: vm.form.reference_number || '',
+        notes: vm.form.notes || ''
+      };
+
+      if (vm.form.payment_type === 'VENDOR_PAYMENT') {
+        payload.vendor_id = vm.form.vendor_id;
+        if (vm.form.purchase_invoice_id) {
+          payload.purchase_invoice_id = vm.form.purchase_invoice_id;
+        }
+      } else {
+        payload.customer_id = vm.form.customer_id;
+      }
+
+      vm.submitting = true;
+      axios.post('/purchase/api/payments/', payload)
+        .then(function(res) {
+          showToast('Payment recorded successfully', 'success');
+          vm.closeCreateModal();
+          vm.fetchPayments();
+        })
+        .catch(function(err) {
+          var msg = 'Failed to record payment';
+          if (err.response && err.response.data) {
+            var data = err.response.data;
+            if (typeof data === 'string') {
+              msg = data;
+            } else if (data.detail) {
+              msg = data.detail;
+            } else {
+              var errors = [];
+              for (var key in data) {
+                if (Array.isArray(data[key])) {
+                  errors.push(data[key].join(', '));
+                } else {
+                  errors.push(data[key]);
+                }
+              }
+              if (errors.length) msg = errors.join('; ');
+            }
+          }
+          showToast(msg, 'error');
+        })
+        .finally(function() {
+          vm.submitting = false;
+        });
+    },
+
+    viewPayment: function(id) {
+      var vm = this;
+      vm.selectedPayment = null;
+      vm.detailLoading = true;
+      vm.showDetailModal = true;
+      vm.$nextTick(function() {
+        if (window.feather) feather.replace();
+      });
+      axios.get('/purchase/api/payments/' + id + '/')
+        .then(function(res) {
+          vm.selectedPayment = res.data;
+          vm.detailLoading = false;
+          vm.$nextTick(function() {
+            if (window.feather) feather.replace();
+          });
+        })
+        .catch(function(err) {
+          showToast('Failed to load payment details', 'error');
+          vm.showDetailModal = false;
+          vm.detailLoading = false;
+        });
+    },
+
+    closeDetailModal: function() {
+      this.showDetailModal = false;
+      this.selectedPayment = null;
+    },
+
+    confirmDelete: function(payment) {
+      this.paymentToDelete = payment;
+      this.showDeleteModal = true;
+      this.$nextTick(function() {
+        if (window.feather) feather.replace();
+      });
+    },
+
+    closeDeleteModal: function() {
+      this.showDeleteModal = false;
+      this.paymentToDelete = null;
+    },
+
+    deletePayment: function() {
+      var vm = this;
+      if (!vm.paymentToDelete) return;
+
+      vm.submitting = true;
+      axios.delete('/purchase/api/payments/' + vm.paymentToDelete.id + '/')
+        .then(function(res) {
+          showToast('Payment deleted successfully', 'success');
+          vm.closeDeleteModal();
+          vm.fetchPayments();
+        })
+        .catch(function(err) {
+          var msg = 'Failed to delete payment';
+          if (err.response && err.response.data && err.response.data.detail) {
+            msg = err.response.data.detail;
+          }
+          showToast(msg, 'error');
+        })
+        .finally(function() {
+          vm.submitting = false;
+        });
+    },
+
+    formatCurrency: function(value) {
+      var num = parseFloat(value) || 0;
+      return '\u20B9' + num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    },
+
+    formatDate: function(dateStr) {
+      if (!dateStr) return '-';
+      var d = new Date(dateStr + 'T00:00:00');
+      return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    },
+
+    formatPaymentMode: function(mode) {
+      if (!mode) return '-';
+      return mode.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); }).replace(/\bUpi\b/, 'UPI');
+    }
+  }
+});
+</script>
+{% endblock %}

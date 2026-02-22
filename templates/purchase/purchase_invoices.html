@@ -1,0 +1,780 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Purchase Invoices | DinePay{% endblock %}
+
+{% block breadcrumb %}
+<span class="breadcrumb-restaurant">{{ request.restaurant.display_name|default:request.restaurant.name|default:"DinePay" }}</span>
+<span class="breadcrumb-sep">/</span>
+<span class="breadcrumb-page">Purchase Invoices</span>
+{% endblock %}
+
+{% block inline_css %}
+<style>
+  @keyframes modalSlideUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="purchaseApp" v-cloak>
+
+  <!-- Loading State -->
+  <div v-if="loading" class="flex items-center justify-center py-32">
+    <div class="text-center">
+      <div class="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-primary-50 mb-4 animate-pulse">
+        <i data-feather="file-text" class="text-primary-400 w-[24px] h-[24px]"></i>
+      </div>
+      <p class="text-sm font-semibold text-gray-400">Loading invoices...</p>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div v-else class="max-w-7xl mx-auto px-4 py-2">
+
+    <!-- Page Header -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 pb-3 border-b border-gray-100">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-primary-50 flex items-center justify-center">
+          <i data-feather="file-text" class="text-primary-500" style="width:20px;height:20px;"></i>
+        </div>
+        <div>
+          <h1 class="text-2xl font-bold text-gray-800">Purchase Invoices</h1>
+          <p class="text-xs text-gray-400 mt-0.5">[[ filteredInvoices.length ]] invoice[[ filteredInvoices.length !== 1 ? 's' : '' ]]</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 mt-3 sm:mt-0">
+        <!-- Vendor Filter -->
+        <select v-model="vendorFilter" @change="fetchInvoices"
+          class="px-3 py-1.5 rounded-lg border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none w-40">
+          <option value="">All Vendors</option>
+          <option v-for="v in vendors" :key="v.id" :value="v.id">[[ v.name ]]</option>
+        </select>
+        <!-- Create Invoice Button -->
+        <button @click="openCreateModal" class="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-primary-500 hover:bg-primary-700 transition-colors shadow-sm inline-flex items-center gap-1.5">
+          <i data-feather="plus" class="w-[18px] h-[18px]"></i> Create Invoice
+        </button>
+      </div>
+    </div>
+
+    <!-- Status Filter Tabs -->
+    <div class="flex flex-wrap gap-1 mb-4">
+      <button v-for="tab in statusTabs" :key="tab.value"
+        @click="statusFilter = tab.value; fetchInvoices()"
+        :class="statusFilter === tab.value
+          ? 'bg-primary-500 text-white shadow-sm'
+          : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'"
+        class="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors">
+        [[ tab.label ]]
+      </button>
+    </div>
+
+    <!-- Invoices Table Card -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+
+      <!-- Empty State -->
+      <div v-if="filteredInvoices.length === 0" class="flex flex-col items-center py-12 text-gray-400">
+        <div class="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center mb-4">
+          <i data-feather="file-text" class="text-gray-300" style="width:28px;height:28px;"></i>
+        </div>
+        <p class="text-sm font-medium">No invoices found.</p>
+        <p class="text-xs mt-1">Click "Create Invoice" to add one.</p>
+      </div>
+
+      <!-- Table -->
+      <div v-if="filteredInvoices.length > 0" class="overflow-x-auto -m-6">
+        <table class="w-full">
+          <thead class="bg-gray-50 border-b border-gray-200">
+            <tr>
+              <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Invoice #</th>
+              <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Vendor</th>
+              <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+              <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Invoice Date</th>
+              <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Due Date</th>
+              <th class="text-right px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Total</th>
+              <th class="text-right px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Paid</th>
+              <th class="text-right px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Balance Due</th>
+              <th class="text-center px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr v-for="inv in filteredInvoices" :key="inv.id"
+                class="hover:bg-gray-50/50 transition-colors cursor-pointer"
+                @click="viewInvoice(inv)">
+              <td class="px-5 py-4 text-sm font-semibold text-gray-800">[[ inv.invoice_number || '-' ]]</td>
+              <td class="px-5 py-4">
+                <div class="flex items-center gap-2">
+                  <div class="w-7 h-7 rounded-full bg-primary-50 flex items-center justify-center text-xs font-bold text-primary-500">
+                    [[ inv.vendor ? inv.vendor.name.charAt(0).toUpperCase() : '?' ]]
+                  </div>
+                  <span class="text-sm text-gray-700">[[ inv.vendor ? inv.vendor.name : '-' ]]</span>
+                </div>
+              </td>
+              <td class="px-5 py-4">
+                <span :class="statusBadgeClass(inv.status)"
+                  class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold">
+                  [[ formatStatus(inv.status) ]]
+                </span>
+              </td>
+              <td class="px-5 py-4 text-sm text-gray-600">[[ formatDate(inv.invoice_date) ]]</td>
+              <td class="px-5 py-4 text-sm text-gray-600">[[ inv.due_date ? formatDate(inv.due_date) : '-' ]]</td>
+              <td class="px-5 py-4 text-sm font-semibold text-gray-800 text-right">[[ formatCurrency(inv.total_amount) ]]</td>
+              <td class="px-5 py-4 text-sm text-gray-600 text-right">[[ formatCurrency(inv.amount_paid) ]]</td>
+              <td class="px-5 py-4 text-sm font-semibold text-right" :class="parseFloat(inv.balance_due) > 0 ? 'text-red-600' : 'text-green-600'">[[ formatCurrency(inv.balance_due) ]]</td>
+              <td class="px-5 py-4 text-center" @click.stop>
+                <div class="inline-flex items-center gap-1">
+                  <button v-if="inv.status === 'PENDING'" class="p-1.5 rounded-lg text-gray-400 hover:text-primary-500 hover:bg-primary-50 transition-colors" @click="openEditModal(inv)" title="Edit">
+                    <i data-feather="edit-2" class="w-[18px] h-[18px]"></i>
+                  </button>
+                  <button class="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors" @click="confirmDelete(inv)" title="Delete">
+                    <i data-feather="trash-2" class="w-[18px] h-[18px]"></i>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create / Edit Invoice Modal -->
+  <div v-if="showFormModal" class="fixed inset-0 bg-gray-900/75 backdrop-blur-sm flex items-center justify-center z-[1000]" @click.self="closeFormModal">
+    <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-3xl mx-4 max-h-[90vh] overflow-y-auto" style="animation: modalSlideUp 0.25s ease-out;">
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between mb-5">
+        <h3 class="text-xl font-bold text-gray-800">[[ isEdit ? 'Edit Invoice' : 'Create Invoice' ]]</h3>
+        <button @click="closeFormModal" class="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors">
+          <i data-feather="x" class="w-[18px] h-[18px]"></i>
+        </button>
+      </div>
+
+      <!-- Modal Form -->
+      <form @submit.prevent="saveInvoice">
+        <!-- Invoice Details -->
+        <div class="mb-5">
+          <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Invoice Details</h4>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-semibold text-primary-600 mb-1.5">Vendor *</label>
+              <select v-model="form.vendor_id" required
+                class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+                <option value="">Select vendor</option>
+                <option v-for="v in vendors" :key="v.id" :value="v.id">[[ v.name ]]</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-primary-600 mb-1.5">Invoice Number *</label>
+              <input type="text" v-model="form.invoice_number" required
+                class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all"
+                placeholder="INV-001">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-primary-600 mb-1.5">Invoice Date *</label>
+              <input type="date" v-model="form.invoice_date" required
+                class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-primary-600 mb-1.5">Due Date</label>
+              <input type="date" v-model="form.due_date"
+                class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+            </div>
+          </div>
+        </div>
+
+        <!-- Tax & Discount -->
+        <div class="mb-5">
+          <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Tax & Discount</h4>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+              <label class="block text-sm font-semibold text-primary-600 mb-1.5">CGST</label>
+              <input type="number" v-model.number="form.cgst" step="0.01" min="0"
+                class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all"
+                placeholder="0.00">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-primary-600 mb-1.5">SGST</label>
+              <input type="number" v-model.number="form.sgst" step="0.01" min="0"
+                class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all"
+                placeholder="0.00">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-primary-600 mb-1.5">IGST</label>
+              <input type="number" v-model.number="form.igst" step="0.01" min="0"
+                class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all"
+                placeholder="0.00">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-primary-600 mb-1.5">Discount</label>
+              <input type="number" v-model.number="form.discount" step="0.01" min="0"
+                class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all"
+                placeholder="0.00">
+            </div>
+          </div>
+        </div>
+
+        <!-- Notes -->
+        <div class="mb-5">
+          <label class="block text-sm font-semibold text-primary-600 mb-1.5">Notes</label>
+          <textarea v-model="form.notes" rows="2"
+            class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all resize-none"
+            placeholder="Additional notes..."></textarea>
+        </div>
+
+        <!-- Line Items (only for create) -->
+        <div v-if="!isEdit" class="mb-5">
+          <div class="flex items-center justify-between mb-3">
+            <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Line Items</h4>
+            <button type="button" @click="addLineItem" class="px-3 py-1 rounded-lg text-xs font-semibold text-primary-600 bg-primary-50 hover:bg-primary-100 transition-colors inline-flex items-center gap-1">
+              <i data-feather="plus" class="w-[14px] h-[14px]"></i> Add Item
+            </button>
+          </div>
+
+          <!-- Line Items Table -->
+          <div v-if="form.items.length > 0" class="overflow-x-auto border border-gray-200 rounded-xl">
+            <table class="w-full">
+              <thead class="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th class="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">Item</th>
+                  <th class="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">Qty</th>
+                  <th class="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider w-28">Unit Price</th>
+                  <th class="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">Tax %</th>
+                  <th class="text-right px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider w-28">Amount</th>
+                  <th class="w-10"></th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100">
+                <tr v-for="(item, idx) in form.items" :key="idx">
+                  <td class="px-3 py-2">
+                    <select v-model="item.inventory_item_id" required
+                      class="w-full px-3 py-1.5 rounded-lg border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none">
+                      <option value="">Select item</option>
+                      <option v-for="inv in inventoryItems" :key="inv.id" :value="inv.id">[[ inv.name ]] ([[ inv.unit ]])</option>
+                    </select>
+                  </td>
+                  <td class="px-3 py-2">
+                    <input type="number" v-model.number="item.quantity" step="0.001" min="0" required
+                      class="w-full px-3 py-1.5 rounded-lg border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none"
+                      placeholder="0">
+                  </td>
+                  <td class="px-3 py-2">
+                    <input type="number" v-model.number="item.unit_price" step="0.01" min="0" required
+                      class="w-full px-3 py-1.5 rounded-lg border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none"
+                      placeholder="0.00">
+                  </td>
+                  <td class="px-3 py-2">
+                    <input type="number" v-model.number="item.tax_percent" step="0.01" min="0"
+                      class="w-full px-3 py-1.5 rounded-lg border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none"
+                      placeholder="0">
+                  </td>
+                  <td class="px-3 py-2 text-right text-sm font-semibold text-gray-700">
+                    [[ formatCurrency(calcLineAmount(item)) ]]
+                  </td>
+                  <td class="px-3 py-2 text-center">
+                    <button type="button" @click="removeLineItem(idx)" class="p-1 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                      <i data-feather="x" class="w-[16px] h-[16px]"></i>
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div v-else class="text-center py-6 text-gray-400 text-sm border border-dashed border-gray-200 rounded-xl">
+            No line items added. Click "Add Item" to begin.
+          </div>
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
+          <button type="button" @click="closeFormModal" class="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">
+            Cancel
+          </button>
+          <button type="submit" :disabled="saving" class="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-primary-500 hover:bg-primary-700 transition-colors shadow-sm">
+            [[ saving ? 'Saving...' : (isEdit ? 'Update Invoice' : 'Create Invoice') ]]
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Invoice Detail Modal -->
+  <div v-if="showDetailModal" class="fixed inset-0 bg-gray-900/75 backdrop-blur-sm flex items-center justify-center z-[1000]" @click.self="closeDetailModal">
+    <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-3xl mx-4 max-h-[90vh] overflow-y-auto" style="animation: modalSlideUp 0.25s ease-out;">
+      <!-- Detail Header -->
+      <div class="flex items-center justify-between mb-5">
+        <div>
+          <h3 class="text-xl font-bold text-gray-800">Invoice [[ detailInvoice.invoice_number ]]</h3>
+          <p class="text-xs text-gray-400 mt-0.5">[[ detailInvoice.vendor ? detailInvoice.vendor.name : '' ]]</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <span :class="statusBadgeClass(detailInvoice.status)"
+            class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold">
+            [[ formatStatus(detailInvoice.status) ]]
+          </span>
+          <button @click="closeDetailModal" class="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors">
+            <i data-feather="x" class="w-[18px] h-[18px]"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Detail Info Grid -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5 pb-5 border-b border-gray-100">
+        <div>
+          <p class="text-xs font-medium text-gray-400 mb-1">Invoice Date</p>
+          <p class="text-sm font-semibold text-gray-700">[[ formatDate(detailInvoice.invoice_date) ]]</p>
+        </div>
+        <div>
+          <p class="text-xs font-medium text-gray-400 mb-1">Due Date</p>
+          <p class="text-sm font-semibold text-gray-700">[[ detailInvoice.due_date ? formatDate(detailInvoice.due_date) : '-' ]]</p>
+        </div>
+        <div>
+          <p class="text-xs font-medium text-gray-400 mb-1">Subtotal</p>
+          <p class="text-sm font-semibold text-gray-700">[[ formatCurrency(detailInvoice.sub_total) ]]</p>
+        </div>
+        <div>
+          <p class="text-xs font-medium text-gray-400 mb-1">Total Amount</p>
+          <p class="text-sm font-bold text-gray-800">[[ formatCurrency(detailInvoice.total_amount) ]]</p>
+        </div>
+      </div>
+
+      <!-- Tax & Payment Info -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5 pb-5 border-b border-gray-100">
+        <div>
+          <p class="text-xs font-medium text-gray-400 mb-1">CGST</p>
+          <p class="text-sm text-gray-700">[[ formatCurrency(detailInvoice.cgst) ]]</p>
+        </div>
+        <div>
+          <p class="text-xs font-medium text-gray-400 mb-1">SGST</p>
+          <p class="text-sm text-gray-700">[[ formatCurrency(detailInvoice.sgst) ]]</p>
+        </div>
+        <div>
+          <p class="text-xs font-medium text-gray-400 mb-1">IGST</p>
+          <p class="text-sm text-gray-700">[[ formatCurrency(detailInvoice.igst) ]]</p>
+        </div>
+        <div>
+          <p class="text-xs font-medium text-gray-400 mb-1">Discount</p>
+          <p class="text-sm text-gray-700">[[ formatCurrency(detailInvoice.discount) ]]</p>
+        </div>
+      </div>
+
+      <!-- Payment Summary -->
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-5 pb-5 border-b border-gray-100">
+        <div>
+          <p class="text-xs font-medium text-gray-400 mb-1">Amount Paid</p>
+          <p class="text-sm font-semibold text-green-600">[[ formatCurrency(detailInvoice.amount_paid) ]]</p>
+        </div>
+        <div>
+          <p class="text-xs font-medium text-gray-400 mb-1">Balance Due</p>
+          <p class="text-sm font-semibold" :class="parseFloat(detailInvoice.balance_due) > 0 ? 'text-red-600' : 'text-green-600'">[[ formatCurrency(detailInvoice.balance_due) ]]</p>
+        </div>
+      </div>
+
+      <!-- Notes -->
+      <div v-if="detailInvoice.notes" class="mb-5 pb-5 border-b border-gray-100">
+        <p class="text-xs font-medium text-gray-400 mb-1">Notes</p>
+        <p class="text-sm text-gray-700 whitespace-pre-wrap">[[ detailInvoice.notes ]]</p>
+      </div>
+
+      <!-- Invoice Items -->
+      <div v-if="detailInvoice.items && detailInvoice.items.length > 0">
+        <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Line Items</h4>
+        <div class="overflow-x-auto border border-gray-200 rounded-xl">
+          <table class="w-full">
+            <thead class="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Item</th>
+                <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Unit</th>
+                <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Qty</th>
+                <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Unit Price</th>
+                <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Tax %</th>
+                <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              <tr v-for="item in detailInvoice.items" :key="item.id" class="hover:bg-gray-50/50 transition-colors">
+                <td class="px-4 py-3 text-sm font-medium text-gray-800">[[ item.item_name ]]</td>
+                <td class="px-4 py-3 text-sm text-gray-600">[[ item.unit ]]</td>
+                <td class="px-4 py-3 text-sm text-gray-700 text-right">[[ item.quantity ]]</td>
+                <td class="px-4 py-3 text-sm text-gray-700 text-right">[[ formatCurrency(item.unit_price) ]]</td>
+                <td class="px-4 py-3 text-sm text-gray-700 text-right">[[ item.tax_percent ]]%</td>
+                <td class="px-4 py-3 text-sm font-semibold text-gray-800 text-right">[[ formatCurrency(item.amount) ]]</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Detail Footer -->
+      <div class="flex items-center justify-end gap-3 pt-5 mt-5 border-t border-gray-100">
+        <button v-if="detailInvoice.status === 'PENDING'" @click="closeDetailModal(); openEditModal(detailInvoice)"
+          class="px-4 py-2 rounded-lg text-sm font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 transition-colors inline-flex items-center gap-1.5">
+          <i data-feather="edit-2" class="w-[16px] h-[16px]"></i> Edit
+        </button>
+        <button @click="closeDetailModal" class="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div v-if="showDeleteModal" class="fixed inset-0 bg-gray-900/75 backdrop-blur-sm flex items-center justify-center z-[1000]" @click.self="showDeleteModal = false">
+    <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4 text-center" style="animation: modalSlideUp 0.25s ease-out;">
+      <div class="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
+        <i data-feather="alert-triangle" class="text-red-500" style="width:24px;height:24px;"></i>
+      </div>
+      <h5 class="text-lg font-bold text-gray-800 mb-2">Delete Invoice</h5>
+      <p class="text-sm text-gray-500 mb-6">Are you sure you want to delete invoice <span class="font-semibold text-gray-700">[[ deleteTarget ? deleteTarget.invoice_number : '' ]]</span>? This action cannot be undone.</p>
+      <div class="flex items-center justify-center gap-3">
+        <button @click="showDeleteModal = false" class="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">
+          Cancel
+        </button>
+        <button @click="deleteInvoice" :disabled="saving" class="px-4 py-2 rounded-lg text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 transition-colors">
+          [[ saving ? 'Deleting...' : 'Delete' ]]
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'assets/js/vue.min.js' %}"></script>
+<script src="{% static 'assets/js/axios.js' %}"></script>
+<script>
+  // CSRF token setup for axios
+  axios.defaults.headers.common['X-CSRFToken'] = (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || '';
+
+  new Vue({
+    el: '#purchaseApp',
+    delimiters: ['[[', ']]'],
+    data: {
+      loading: true,
+      saving: false,
+      invoices: [],
+      vendors: [],
+      inventoryItems: [],
+      statusFilter: '',
+      vendorFilter: '',
+
+      // Status tabs
+      statusTabs: [
+        { label: 'All', value: '' },
+        { label: 'Pending', value: 'PENDING' },
+        { label: 'Partially Paid', value: 'PARTIALLY_PAID' },
+        { label: 'Paid', value: 'PAID' },
+        { label: 'Cancelled', value: 'CANCELLED' }
+      ],
+
+      // Form modal
+      showFormModal: false,
+      isEdit: false,
+      editId: null,
+      form: {
+        vendor_id: '',
+        invoice_number: '',
+        invoice_date: '',
+        due_date: '',
+        cgst: 0,
+        sgst: 0,
+        igst: 0,
+        discount: 0,
+        notes: '',
+        items: []
+      },
+
+      // Detail modal
+      showDetailModal: false,
+      detailInvoice: {},
+
+      // Delete modal
+      showDeleteModal: false,
+      deleteTarget: null
+    },
+
+    computed: {
+      filteredInvoices: function() {
+        return this.invoices;
+      }
+    },
+
+    mounted: function() {
+      this.fetchInitialData();
+    },
+
+    methods: {
+      fetchInitialData: function() {
+        var self = this;
+        Promise.all([
+          axios.get('/purchase/api/purchase-invoices/'),
+          axios.get('/purchase/api/vendors/'),
+          axios.get('/purchase/api/inventory/')
+        ]).then(function(responses) {
+          self.invoices = responses[0].data;
+          self.vendors = responses[1].data;
+          self.inventoryItems = responses[2].data;
+          self.loading = false;
+          self.$nextTick(function() { if (window.feather) feather.replace(); });
+        }).catch(function() {
+          showToast('Failed to load data', 'error');
+          self.loading = false;
+          self.$nextTick(function() { if (window.feather) feather.replace(); });
+        });
+      },
+
+      fetchInvoices: function() {
+        var self = this;
+        var params = {};
+        if (self.statusFilter) params.status = self.statusFilter;
+        if (self.vendorFilter) params.vendor_id = self.vendorFilter;
+
+        axios.get('/purchase/api/purchase-invoices/', { params: params })
+          .then(function(res) {
+            self.invoices = res.data;
+            self.$nextTick(function() { if (window.feather) feather.replace(); });
+          })
+          .catch(function() {
+            showToast('Failed to load invoices', 'error');
+          });
+      },
+
+      // -- Form Modal --
+      resetForm: function() {
+        this.form = {
+          vendor_id: '',
+          invoice_number: '',
+          invoice_date: '',
+          due_date: '',
+          cgst: 0,
+          sgst: 0,
+          igst: 0,
+          discount: 0,
+          notes: '',
+          items: []
+        };
+      },
+
+      openCreateModal: function() {
+        this.isEdit = false;
+        this.editId = null;
+        this.resetForm();
+        this.addLineItem();
+        this.showFormModal = true;
+        this.$nextTick(function() { if (window.feather) feather.replace(); });
+      },
+
+      openEditModal: function(inv) {
+        this.isEdit = true;
+        this.editId = inv.id;
+        this.form = {
+          vendor_id: inv.vendor ? inv.vendor.id : '',
+          invoice_number: inv.invoice_number || '',
+          invoice_date: inv.invoice_date || '',
+          due_date: inv.due_date || '',
+          cgst: parseFloat(inv.cgst) || 0,
+          sgst: parseFloat(inv.sgst) || 0,
+          igst: parseFloat(inv.igst) || 0,
+          discount: parseFloat(inv.discount) || 0,
+          notes: inv.notes || '',
+          items: []
+        };
+        this.showFormModal = true;
+        this.$nextTick(function() { if (window.feather) feather.replace(); });
+      },
+
+      closeFormModal: function() {
+        this.showFormModal = false;
+        this.isEdit = false;
+        this.editId = null;
+        this.resetForm();
+      },
+
+      addLineItem: function() {
+        this.form.items.push({
+          inventory_item_id: '',
+          quantity: '',
+          unit_price: '',
+          tax_percent: 0
+        });
+        this.$nextTick(function() { if (window.feather) feather.replace(); });
+      },
+
+      removeLineItem: function(idx) {
+        this.form.items.splice(idx, 1);
+      },
+
+      calcLineAmount: function(item) {
+        var qty = parseFloat(item.quantity) || 0;
+        var price = parseFloat(item.unit_price) || 0;
+        var tax = parseFloat(item.tax_percent) || 0;
+        var base = qty * price;
+        return base + (base * tax / 100);
+      },
+
+      saveInvoice: function() {
+        var self = this;
+
+        if (!self.form.vendor_id) {
+          showToast('Please select a vendor', 'error');
+          return;
+        }
+        if (!self.form.invoice_number.trim()) {
+          showToast('Invoice number is required', 'error');
+          return;
+        }
+        if (!self.form.invoice_date) {
+          showToast('Invoice date is required', 'error');
+          return;
+        }
+
+        self.saving = true;
+        var payload = {
+          vendor_id: self.form.vendor_id,
+          invoice_number: self.form.invoice_number,
+          invoice_date: self.form.invoice_date,
+          due_date: self.form.due_date || null,
+          cgst: self.form.cgst || 0,
+          sgst: self.form.sgst || 0,
+          igst: self.form.igst || 0,
+          discount: self.form.discount || 0,
+          notes: self.form.notes
+        };
+
+        var request;
+        if (self.isEdit) {
+          request = axios.put('/purchase/api/purchase-invoices/' + self.editId + '/', payload, {
+            headers: { 'Content-Type': 'application/json' }
+          });
+        } else {
+          // Validate line items for create
+          var validItems = self.form.items.filter(function(item) {
+            return item.inventory_item_id && item.quantity && item.unit_price;
+          });
+          if (validItems.length === 0) {
+            showToast('Please add at least one line item', 'error');
+            self.saving = false;
+            return;
+          }
+          payload.items = validItems.map(function(item) {
+            return {
+              inventory_item_id: item.inventory_item_id,
+              quantity: parseFloat(item.quantity) || 0,
+              unit_price: parseFloat(item.unit_price) || 0,
+              tax_percent: parseFloat(item.tax_percent) || 0
+            };
+          });
+          request = axios.post('/purchase/api/purchase-invoices/', payload, {
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+
+        request
+          .then(function() {
+            showToast(self.isEdit ? 'Invoice updated successfully' : 'Invoice created successfully', 'success');
+            self.closeFormModal();
+            self.fetchInvoices();
+          })
+          .catch(function(err) {
+            var msg = 'Failed to save invoice';
+            if (err.response && err.response.data) {
+              var data = err.response.data;
+              if (typeof data === 'string') msg = data;
+              else if (data.detail) msg = data.detail;
+              else if (data.error) msg = data.error;
+              else {
+                var firstKey = Object.keys(data)[0];
+                if (firstKey) {
+                  var val = data[firstKey];
+                  msg = firstKey + ': ' + (Array.isArray(val) ? val[0] : val);
+                }
+              }
+            }
+            showToast(msg, 'error');
+          })
+          .finally(function() {
+            self.saving = false;
+          });
+      },
+
+      // -- Detail Modal --
+      viewInvoice: function(inv) {
+        var self = this;
+        axios.get('/purchase/api/purchase-invoices/' + inv.id + '/')
+          .then(function(res) {
+            self.detailInvoice = res.data;
+            self.showDetailModal = true;
+            self.$nextTick(function() { if (window.feather) feather.replace(); });
+          })
+          .catch(function() {
+            showToast('Failed to load invoice details', 'error');
+          });
+      },
+
+      closeDetailModal: function() {
+        this.showDetailModal = false;
+        this.detailInvoice = {};
+      },
+
+      // -- Delete --
+      confirmDelete: function(inv) {
+        this.deleteTarget = inv;
+        this.showDeleteModal = true;
+        this.$nextTick(function() { if (window.feather) feather.replace(); });
+      },
+
+      deleteInvoice: function() {
+        var self = this;
+        if (!self.deleteTarget) return;
+        self.saving = true;
+        axios.delete('/purchase/api/purchase-invoices/' + self.deleteTarget.id + '/')
+          .then(function() {
+            showToast('Invoice deleted successfully', 'success');
+            self.showDeleteModal = false;
+            self.deleteTarget = null;
+            self.fetchInvoices();
+          })
+          .catch(function() {
+            showToast('Failed to delete invoice', 'error');
+          })
+          .finally(function() {
+            self.saving = false;
+          });
+      },
+
+      // -- Helpers --
+      formatCurrency: function(value) {
+        var num = parseFloat(value) || 0;
+        return '\u20B9' + num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      },
+
+      formatDate: function(dateStr) {
+        if (!dateStr) return '-';
+        var parts = dateStr.split('-');
+        if (parts.length === 3) {
+          return parts[2] + '/' + parts[1] + '/' + parts[0];
+        }
+        return dateStr;
+      },
+
+      formatStatus: function(status) {
+        if (!status) return '';
+        return status.replace(/_/g, ' ');
+      },
+
+      statusBadgeClass: function(status) {
+        switch (status) {
+          case 'PENDING': return 'bg-yellow-50 text-yellow-700';
+          case 'PARTIALLY_PAID': return 'bg-blue-50 text-blue-700';
+          case 'PAID': return 'bg-green-50 text-green-700';
+          case 'CANCELLED': return 'bg-red-50 text-red-700';
+          default: return 'bg-gray-50 text-gray-700';
+        }
+      }
+    }
+  });
+</script>
+{% endblock %}

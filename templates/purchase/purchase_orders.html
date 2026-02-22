@@ -1,0 +1,788 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Purchase Orders | DinePay{% endblock %}
+
+{% block breadcrumb %}
+<span class="breadcrumb-restaurant">{{ request.restaurant.display_name|default:request.restaurant.name|default:"DinePay" }}</span>
+<span class="breadcrumb-sep">/</span>
+<span class="breadcrumb-page">Purchase Orders</span>
+{% endblock %}
+
+{% block inline_css %}
+<style>
+  @keyframes modalSlideUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="purchaseApp" v-cloak>
+
+  <!-- Loading State -->
+  <div v-if="loading" class="flex items-center justify-center py-32">
+    <div class="text-center">
+      <div class="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-primary-50 mb-4 animate-pulse">
+        <i data-feather="shopping-cart" class="text-primary-400 w-[24px] h-[24px]"></i>
+      </div>
+      <p class="text-sm font-semibold text-gray-400">Loading purchase orders...</p>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div v-else class="max-w-7xl mx-auto px-4 py-4">
+
+    <!-- Page Header -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 pb-4 border-b border-gray-100">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-primary-50 flex items-center justify-center">
+          <i data-feather="shopping-cart" class="text-primary-500 w-[20px] h-[20px]"></i>
+        </div>
+        <div>
+          <h1 class="text-2xl font-bold text-gray-800">Purchase Orders</h1>
+          <p class="text-xs text-gray-400 mt-0.5">Manage purchase orders for your vendors</p>
+        </div>
+      </div>
+      <button @click="openCreateModal" class="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-primary-500 hover:bg-primary-700 transition-colors shadow-sm inline-flex items-center gap-2 mt-3 sm:mt-0">
+        <i data-feather="plus" class="w-[16px] h-[16px]"></i> Create PO
+      </button>
+    </div>
+
+    <!-- Search and Filters Card -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-4">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <!-- Search -->
+        <div class="w-full sm:w-auto sm:min-w-[280px]">
+          <input type="search" v-model="searchQuery" @input="filterOrders" placeholder="Search by PO number..."
+            class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+        </div>
+        <!-- Status Tabs -->
+        <div class="flex items-center gap-1 overflow-x-auto">
+          <button v-for="tab in statusTabs" :key="tab.value" @click="setStatusFilter(tab.value)"
+            :class="activeStatus === tab.value
+              ? 'border-b-2 border-primary-500 text-primary-600 font-semibold'
+              : 'text-gray-500 hover:text-gray-700'"
+            class="px-3 py-2 text-sm whitespace-nowrap transition-colors">
+            [[ tab.label ]]
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Purchase Orders Table -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <!-- Empty State -->
+      <div v-if="!filteredOrders.length" class="py-16 text-center">
+        <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gray-50 mb-4">
+          <i data-feather="shopping-cart" class="text-gray-300 w-[28px] h-[28px]"></i>
+        </div>
+        <p class="text-sm text-gray-500 mb-1">No purchase orders found</p>
+        <p class="text-xs text-gray-400 mb-4">Create your first purchase order to get started</p>
+        <button @click="openCreateModal" class="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-primary-500 hover:bg-primary-700 transition-colors shadow-sm inline-flex items-center gap-2">
+          <i data-feather="plus" class="w-[14px] h-[14px]"></i> Create PO
+        </button>
+      </div>
+
+      <!-- Table -->
+      <div v-else class="overflow-x-auto">
+        <table class="w-full">
+          <thead class="bg-gray-50 border-b border-gray-200">
+            <tr>
+              <th class="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">PO Number</th>
+              <th class="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Vendor</th>
+              <th class="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+              <th class="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Order Date</th>
+              <th class="text-right px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Amount</th>
+              <th class="text-center px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr v-for="po in filteredOrders" :key="po.id" class="hover:bg-gray-50/50 transition-colors cursor-pointer" @click="viewOrder(po.id)">
+              <td class="px-6 py-3.5 text-sm font-semibold text-primary-600">[[ po.order_number ]]</td>
+              <td class="px-6 py-3.5 text-sm text-gray-700">[[ po.vendor ? po.vendor.name : '—' ]]</td>
+              <td class="px-6 py-3.5">
+                <span :class="statusBadgeClass(po.status)" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold">
+                  [[ po.status ]]
+                </span>
+              </td>
+              <td class="px-6 py-3.5 text-sm text-gray-600">[[ formatDate(po.order_date) ]]</td>
+              <td class="px-6 py-3.5 text-sm font-semibold text-gray-800 text-right">[[ formatCurrency(po.total_amount) ]]</td>
+              <td class="px-6 py-3.5 text-center" @click.stop>
+                <div class="inline-flex items-center gap-1">
+                  <!-- DRAFT Actions -->
+                  <template v-if="po.status === 'DRAFT'">
+                    <button @click="editOrder(po.id)" class="px-2.5 py-1 rounded-lg text-xs font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 transition-colors">Edit</button>
+                    <button @click="approveOrder(po.id)" class="px-2.5 py-1 rounded-lg text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors">Approve</button>
+                    <button @click="cancelOrder(po.id)" class="px-2.5 py-1 rounded-lg text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 transition-colors">Cancel</button>
+                    <button @click="deleteOrder(po.id)" class="px-2.5 py-1 rounded-lg text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 transition-colors">Delete</button>
+                  </template>
+                  <!-- APPROVED Actions -->
+                  <template v-else-if="po.status === 'APPROVED'">
+                    <button @click="openReceiveModal(po.id)" class="px-2.5 py-1 rounded-lg text-xs font-medium text-green-600 bg-green-50 hover:bg-green-100 transition-colors">Receive</button>
+                    <button @click="cancelOrder(po.id)" class="px-2.5 py-1 rounded-lg text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 transition-colors">Cancel</button>
+                  </template>
+                  <!-- RECEIVED / CANCELLED -->
+                  <template v-else>
+                    <button @click="viewOrder(po.id)" class="px-2.5 py-1 rounded-lg text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">View</button>
+                  </template>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- CREATE / EDIT PO MODAL                                       -->
+  <!-- ============================================================ -->
+  <div v-if="showFormModal" class="fixed inset-0 bg-gray-900/75 backdrop-blur-sm flex items-center justify-center z-[1000]">
+    <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-3xl mx-4 max-h-[90vh] overflow-y-auto" style="animation: modalSlideUp 0.25s ease-out;">
+      <!-- Header -->
+      <div class="flex items-center justify-between mb-5">
+        <h3 class="text-xl font-bold text-gray-800">[[ formMode === 'create' ? 'Create Purchase Order' : 'Edit Purchase Order' ]]</h3>
+        <button @click="closeFormModal" class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+      </div>
+
+      <form @submit.prevent="submitForm">
+        <!-- PO Details -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+          <!-- Vendor -->
+          <div>
+            <label class="block text-sm font-semibold text-primary-600 mb-1.5">Vendor *</label>
+            <select v-model="form.vendor_id" required
+              class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+              <option value="" disabled>Select vendor</option>
+              <option v-for="v in vendors" :key="v.id" :value="v.id">[[ v.name ]]</option>
+            </select>
+          </div>
+
+          <!-- Order Date -->
+          <div>
+            <label class="block text-sm font-semibold text-primary-600 mb-1.5">Order Date *</label>
+            <input type="date" v-model="form.order_date" required
+              class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+          </div>
+
+          <!-- Expected Delivery Date -->
+          <div>
+            <label class="block text-sm font-semibold text-primary-600 mb-1.5">Expected Delivery Date</label>
+            <input type="date" v-model="form.expected_delivery_date"
+              class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+          </div>
+
+          <!-- Notes -->
+          <div>
+            <label class="block text-sm font-semibold text-primary-600 mb-1.5">Notes</label>
+            <input type="text" v-model="form.notes" placeholder="Optional notes"
+              class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+          </div>
+        </div>
+
+        <!-- Line Items -->
+        <div class="mb-5">
+          <div class="flex items-center justify-between mb-3">
+            <label class="block text-sm font-semibold text-primary-600">Line Items</label>
+            <button type="button" @click="addLineItem" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-primary-500 hover:bg-primary-700 transition-colors shadow-sm inline-flex items-center gap-1">
+              <i data-feather="plus" class="w-[12px] h-[12px]"></i> Add Item
+            </button>
+          </div>
+
+          <div class="overflow-x-auto rounded-xl border border-gray-200">
+            <table class="w-full">
+              <thead class="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[180px]">Inventory Item</th>
+                  <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">Qty</th>
+                  <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider w-28">Unit Price</th>
+                  <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">Tax %</th>
+                  <th class="text-right px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider w-28">Amount</th>
+                  <th class="text-center px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider w-16"></th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100">
+                <tr v-for="(item, idx) in form.items" :key="idx" class="hover:bg-gray-50/50">
+                  <td class="px-3 py-2">
+                    <select v-model="item.inventory_item_id" required
+                      class="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+                      <option value="" disabled>Select item</option>
+                      <option v-for="inv in inventoryItems" :key="inv.id" :value="inv.id">[[ inv.name ]] ([[ inv.unit ]])</option>
+                    </select>
+                  </td>
+                  <td class="px-3 py-2">
+                    <input type="number" v-model.number="item.quantity" min="0.001" step="0.001" required @input="calcLineAmount(idx)"
+                      class="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+                  </td>
+                  <td class="px-3 py-2">
+                    <input type="number" v-model.number="item.unit_price" min="0" step="0.01" required @input="calcLineAmount(idx)"
+                      class="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+                  </td>
+                  <td class="px-3 py-2">
+                    <input type="number" v-model.number="item.tax_percent" min="0" max="100" step="0.01" @input="calcLineAmount(idx)"
+                      class="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+                  </td>
+                  <td class="px-3 py-2 text-right text-sm font-semibold text-gray-800">
+                    [[ formatCurrency(item.amount) ]]
+                  </td>
+                  <td class="px-3 py-2 text-center">
+                    <button type="button" @click="removeLineItem(idx)" v-if="form.items.length > 1"
+                      class="p-1 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+              <tfoot class="border-t border-gray-200 bg-gray-50">
+                <tr>
+                  <td colspan="4" class="px-3 py-2.5 text-sm font-semibold text-gray-600 text-right">Total:</td>
+                  <td class="px-3 py-2.5 text-sm font-bold text-gray-800 text-right">[[ formatCurrency(formTotal) ]]</td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
+        <!-- Form Actions -->
+        <div class="flex items-center justify-end gap-3">
+          <button type="button" @click="closeFormModal" class="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">Cancel</button>
+          <button type="submit" :disabled="submitting" class="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-primary-500 hover:bg-primary-700 transition-colors shadow-sm inline-flex items-center gap-2">
+            <span v-if="submitting">Saving...</span>
+            <span v-else>[[ formMode === 'create' ? 'Create PO' : 'Update PO' ]]</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- VIEW DETAIL MODAL                                            -->
+  <!-- ============================================================ -->
+  <div v-if="showDetailModal" class="fixed inset-0 bg-gray-900/75 backdrop-blur-sm flex items-center justify-center z-[1000]">
+    <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-3xl mx-4 max-h-[90vh] overflow-y-auto" style="animation: modalSlideUp 0.25s ease-out;">
+      <!-- Header -->
+      <div class="flex items-center justify-between mb-5">
+        <div>
+          <h3 class="text-xl font-bold text-gray-800">PO #[[ detail.order_number ]]</h3>
+          <span :class="statusBadgeClass(detail.status)" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold mt-1">
+            [[ detail.status ]]
+          </span>
+        </div>
+        <button @click="closeDetailModal" class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+      </div>
+
+      <!-- PO Info -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
+        <div>
+          <p class="text-xs font-semibold text-gray-400 uppercase mb-1">Vendor</p>
+          <p class="text-sm font-medium text-gray-800">[[ detail.vendor ? detail.vendor.name : '—' ]]</p>
+        </div>
+        <div>
+          <p class="text-xs font-semibold text-gray-400 uppercase mb-1">Order Date</p>
+          <p class="text-sm font-medium text-gray-800">[[ formatDate(detail.order_date) ]]</p>
+        </div>
+        <div>
+          <p class="text-xs font-semibold text-gray-400 uppercase mb-1">Expected Delivery</p>
+          <p class="text-sm font-medium text-gray-800">[[ detail.expected_delivery_date ? formatDate(detail.expected_delivery_date) : '—' ]]</p>
+        </div>
+        <div>
+          <p class="text-xs font-semibold text-gray-400 uppercase mb-1">Total</p>
+          <p class="text-sm font-bold text-gray-800">[[ formatCurrency(detail.total_amount) ]]</p>
+        </div>
+      </div>
+
+      <!-- Notes -->
+      <div v-if="detail.notes" class="mb-5 p-3 rounded-xl bg-gray-50 border border-gray-100">
+        <p class="text-xs font-semibold text-gray-400 uppercase mb-1">Notes</p>
+        <p class="text-sm text-gray-700">[[ detail.notes ]]</p>
+      </div>
+
+      <!-- Items Table -->
+      <div class="overflow-x-auto rounded-xl border border-gray-200 mb-5">
+        <table class="w-full">
+          <thead class="bg-gray-50 border-b border-gray-200">
+            <tr>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">#</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Item</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Unit</th>
+              <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Qty</th>
+              <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Unit Price</th>
+              <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Tax %</th>
+              <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr v-for="(item, idx) in detail.items" :key="item.id" class="hover:bg-gray-50/50">
+              <td class="px-4 py-2.5 text-sm text-gray-500">[[ idx + 1 ]]</td>
+              <td class="px-4 py-2.5 text-sm font-medium text-gray-800">[[ item.item_name ]]</td>
+              <td class="px-4 py-2.5 text-sm text-gray-600">[[ item.unit ]]</td>
+              <td class="px-4 py-2.5 text-sm text-gray-700 text-right">[[ item.quantity ]]</td>
+              <td class="px-4 py-2.5 text-sm text-gray-700 text-right">[[ formatCurrency(item.unit_price) ]]</td>
+              <td class="px-4 py-2.5 text-sm text-gray-600 text-right">[[ item.tax_percent ]]%</td>
+              <td class="px-4 py-2.5 text-sm font-semibold text-gray-800 text-right">[[ formatCurrency(item.amount) ]]</td>
+            </tr>
+          </tbody>
+          <tfoot class="border-t border-gray-200 bg-gray-50">
+            <tr>
+              <td colspan="6" class="px-4 py-2.5 text-sm text-gray-500 text-right">Sub Total:</td>
+              <td class="px-4 py-2.5 text-sm font-medium text-gray-700 text-right">[[ formatCurrency(detail.sub_total) ]]</td>
+            </tr>
+            <tr>
+              <td colspan="6" class="px-4 py-1.5 text-sm text-gray-500 text-right">Tax:</td>
+              <td class="px-4 py-1.5 text-sm font-medium text-gray-700 text-right">[[ formatCurrency(detail.tax_amount) ]]</td>
+            </tr>
+            <tr>
+              <td colspan="6" class="px-4 py-2.5 text-sm font-semibold text-gray-700 text-right">Total:</td>
+              <td class="px-4 py-2.5 text-sm font-bold text-gray-800 text-right">[[ formatCurrency(detail.total_amount) ]]</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <!-- Detail Action Buttons -->
+      <div class="flex items-center justify-end gap-2">
+        <button @click="closeDetailModal" class="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">Close</button>
+
+        <!-- DRAFT Actions -->
+        <template v-if="detail.status === 'DRAFT'">
+          <button @click="closeDetailModal(); editOrder(detail.id)" class="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-primary-500 hover:bg-primary-700 transition-colors shadow-sm">Edit</button>
+          <button @click="approveOrder(detail.id)" class="px-4 py-2 rounded-lg text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors">Approve</button>
+          <button @click="cancelOrder(detail.id)" class="px-4 py-2 rounded-lg text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 transition-colors">Cancel</button>
+          <button @click="deleteOrder(detail.id)" class="px-4 py-2 rounded-lg text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 transition-colors">Delete</button>
+        </template>
+
+        <!-- APPROVED Actions -->
+        <template v-if="detail.status === 'APPROVED'">
+          <button @click="openReceiveModal(detail.id)" class="px-4 py-2 rounded-lg text-sm font-medium text-green-600 bg-green-50 hover:bg-green-100 transition-colors">Receive</button>
+          <button @click="cancelOrder(detail.id)" class="px-4 py-2 rounded-lg text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 transition-colors">Cancel</button>
+        </template>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- RECEIVE MODAL (with auto-create invoice checkbox)            -->
+  <!-- ============================================================ -->
+  <div v-if="showReceiveModal" class="fixed inset-0 bg-gray-900/75 backdrop-blur-sm flex items-center justify-center z-[1000]">
+    <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4" style="animation: modalSlideUp 0.25s ease-out;">
+      <div class="flex items-center justify-between mb-5">
+        <h3 class="text-xl font-bold text-gray-800">Receive Purchase Order</h3>
+        <button @click="showReceiveModal = false" class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+      </div>
+
+      <div class="mb-5">
+        <p class="text-sm text-gray-600 mb-4">Mark this purchase order as received. This will update inventory stock levels.</p>
+        <label class="inline-flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" v-model="autoCreateInvoice" class="w-4 h-4 rounded border-gray-300 text-primary-500 focus:ring-primary-500">
+          <span class="text-sm font-medium text-gray-700">Auto-create invoice from this PO</span>
+        </label>
+      </div>
+
+      <div class="flex items-center justify-end gap-3">
+        <button @click="showReceiveModal = false" class="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">Cancel</button>
+        <button @click="receiveOrder" :disabled="submitting" class="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-primary-500 hover:bg-primary-700 transition-colors shadow-sm">
+          <span v-if="submitting">Processing...</span>
+          <span v-else>Confirm Receive</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'assets/js/vue.min.js' %}"></script>
+<script src="{% static 'assets/js/axios.js' %}"></script>
+<script>
+axios.defaults.xsrfCookieName = 'csrftoken';
+axios.defaults.xsrfHeaderName = 'X-CSRFTOKEN';
+
+new Vue({
+  el: '#purchaseApp',
+  delimiters: ['[[', ']]'],
+  data: {
+    loading: true,
+    submitting: false,
+    orders: [],
+    vendors: [],
+    inventoryItems: [],
+    searchQuery: '',
+    activeStatus: '',
+
+    statusTabs: [
+      { label: 'All', value: '' },
+      { label: 'Draft', value: 'DRAFT' },
+      { label: 'Approved', value: 'APPROVED' },
+      { label: 'Received', value: 'RECEIVED' },
+      { label: 'Cancelled', value: 'CANCELLED' }
+    ],
+
+    // Create/Edit Modal
+    showFormModal: false,
+    formMode: 'create',
+    editingId: null,
+    form: {
+      vendor_id: '',
+      order_date: '',
+      expected_delivery_date: '',
+      notes: '',
+      items: []
+    },
+
+    // Detail Modal
+    showDetailModal: false,
+    detail: {
+      id: null,
+      order_number: '',
+      status: '',
+      vendor: null,
+      order_date: '',
+      expected_delivery_date: '',
+      notes: '',
+      sub_total: 0,
+      tax_amount: 0,
+      total_amount: 0,
+      items: []
+    },
+
+    // Receive Modal
+    showReceiveModal: false,
+    receivingId: null,
+    autoCreateInvoice: false
+  },
+
+  computed: {
+    filteredOrders: function() {
+      var vm = this;
+      var list = vm.orders;
+      if (vm.searchQuery) {
+        var q = vm.searchQuery.toLowerCase();
+        list = list.filter(function(po) {
+          return po.order_number && po.order_number.toLowerCase().indexOf(q) !== -1;
+        });
+      }
+      return list;
+    },
+
+    formTotal: function() {
+      var total = 0;
+      this.form.items.forEach(function(item) {
+        total += parseFloat(item.amount) || 0;
+      });
+      return total;
+    }
+  },
+
+  mounted: function() {
+    this.fetchOrders();
+    this.fetchVendors();
+    this.fetchInventory();
+  },
+
+  methods: {
+    // ========================
+    // Data fetching
+    // ========================
+    fetchOrders: function() {
+      var vm = this;
+      var url = '/purchase/api/purchase-orders/';
+      if (vm.activeStatus) {
+        url += '?status=' + vm.activeStatus;
+      }
+      axios.get(url)
+        .then(function(res) {
+          vm.orders = res.data;
+          vm.loading = false;
+          vm.$nextTick(function() { if (window.feather) feather.replace(); });
+        })
+        .catch(function() {
+          showToast('Failed to load purchase orders', 'error');
+          vm.loading = false;
+          vm.$nextTick(function() { if (window.feather) feather.replace(); });
+        });
+    },
+
+    fetchVendors: function() {
+      var vm = this;
+      axios.get('/purchase/api/vendors/')
+        .then(function(res) { vm.vendors = res.data; })
+        .catch(function() {});
+    },
+
+    fetchInventory: function() {
+      var vm = this;
+      axios.get('/purchase/api/inventory/')
+        .then(function(res) { vm.inventoryItems = res.data; })
+        .catch(function() {});
+    },
+
+    // ========================
+    // Status filter
+    // ========================
+    setStatusFilter: function(status) {
+      this.activeStatus = status;
+      this.loading = true;
+      this.fetchOrders();
+    },
+
+    filterOrders: function() {
+      // Computed property handles filtering reactively
+    },
+
+    // ========================
+    // Status badge
+    // ========================
+    statusBadgeClass: function(status) {
+      switch (status) {
+        case 'DRAFT': return 'bg-gray-100 text-gray-700';
+        case 'APPROVED': return 'bg-blue-50 text-blue-700';
+        case 'RECEIVED': return 'bg-green-50 text-green-700';
+        case 'CANCELLED': return 'bg-red-50 text-red-700';
+        default: return 'bg-gray-100 text-gray-700';
+      }
+    },
+
+    // ========================
+    // Formatting
+    // ========================
+    formatCurrency: function(value) {
+      var num = parseFloat(value) || 0;
+      return '\u20B9' + num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    },
+
+    formatDate: function(dateStr) {
+      if (!dateStr) return '—';
+      var parts = dateStr.split('-');
+      if (parts.length === 3) return parts[2] + '/' + parts[1] + '/' + parts[0];
+      return dateStr;
+    },
+
+    // ========================
+    // Create / Edit Modal
+    // ========================
+    getEmptyLineItem: function() {
+      return { inventory_item_id: '', quantity: 1, unit_price: 0, tax_percent: 0, amount: 0 };
+    },
+
+    openCreateModal: function() {
+      var today = new Date();
+      var pad = function(n) { return n < 10 ? '0' + n : n; };
+      var todayStr = today.getFullYear() + '-' + pad(today.getMonth() + 1) + '-' + pad(today.getDate());
+
+      this.formMode = 'create';
+      this.editingId = null;
+      this.form = {
+        vendor_id: '',
+        order_date: todayStr,
+        expected_delivery_date: '',
+        notes: '',
+        items: [this.getEmptyLineItem()]
+      };
+      this.showFormModal = true;
+      this.$nextTick(function() { if (window.feather) feather.replace(); });
+    },
+
+    editOrder: function(id) {
+      var vm = this;
+      axios.get('/purchase/api/purchase-orders/' + id)
+        .then(function(res) {
+          var po = res.data;
+          vm.formMode = 'edit';
+          vm.editingId = id;
+          vm.form = {
+            vendor_id: po.vendor ? po.vendor.id : '',
+            order_date: po.order_date || '',
+            expected_delivery_date: po.expected_delivery_date || '',
+            notes: po.notes || '',
+            items: (po.items && po.items.length) ? po.items.map(function(item) {
+              return {
+                inventory_item_id: item.inventory_item || '',
+                quantity: parseFloat(item.quantity) || 1,
+                unit_price: parseFloat(item.unit_price) || 0,
+                tax_percent: parseFloat(item.tax_percent) || 0,
+                amount: parseFloat(item.amount) || 0
+              };
+            }) : [vm.getEmptyLineItem()]
+          };
+          vm.showFormModal = true;
+          vm.$nextTick(function() { if (window.feather) feather.replace(); });
+        })
+        .catch(function() {
+          showToast('Failed to load order details', 'error');
+        });
+    },
+
+    closeFormModal: function() {
+      this.showFormModal = false;
+    },
+
+    addLineItem: function() {
+      this.form.items.push(this.getEmptyLineItem());
+    },
+
+    removeLineItem: function(idx) {
+      this.form.items.splice(idx, 1);
+    },
+
+    calcLineAmount: function(idx) {
+      var item = this.form.items[idx];
+      var qty = parseFloat(item.quantity) || 0;
+      var price = parseFloat(item.unit_price) || 0;
+      var tax = parseFloat(item.tax_percent) || 0;
+      var subtotal = qty * price;
+      var taxAmount = subtotal * tax / 100;
+      item.amount = Math.round((subtotal + taxAmount) * 100) / 100;
+    },
+
+    submitForm: function() {
+      var vm = this;
+      if (vm.submitting) return;
+
+      // Validate at least one item
+      var validItems = vm.form.items.filter(function(item) {
+        return item.inventory_item_id && item.quantity > 0;
+      });
+      if (!validItems.length) {
+        showToast('Add at least one line item', 'error');
+        return;
+      }
+
+      vm.submitting = true;
+      var payload = {
+        vendor_id: vm.form.vendor_id,
+        order_date: vm.form.order_date,
+        expected_delivery_date: vm.form.expected_delivery_date || null,
+        notes: vm.form.notes,
+        items: validItems.map(function(item) {
+          return {
+            inventory_item_id: item.inventory_item_id,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            tax_percent: item.tax_percent || 0
+          };
+        })
+      };
+
+      var request;
+      if (vm.formMode === 'create') {
+        request = axios.post('/purchase/api/purchase-orders/', payload);
+      } else {
+        request = axios.put('/purchase/api/purchase-orders/' + vm.editingId, payload);
+      }
+
+      request
+        .then(function() {
+          showToast(vm.formMode === 'create' ? 'Purchase order created' : 'Purchase order updated');
+          vm.showFormModal = false;
+          vm.submitting = false;
+          vm.fetchOrders();
+        })
+        .catch(function(err) {
+          var msg = (err.response && err.response.data && err.response.data.error) || 'Failed to save purchase order';
+          showToast(msg, 'error');
+          vm.submitting = false;
+        });
+    },
+
+    // ========================
+    // View Detail
+    // ========================
+    viewOrder: function(id) {
+      var vm = this;
+      axios.get('/purchase/api/purchase-orders/' + id)
+        .then(function(res) {
+          vm.detail = res.data;
+          vm.showDetailModal = true;
+          vm.$nextTick(function() { if (window.feather) feather.replace(); });
+        })
+        .catch(function() {
+          showToast('Failed to load order details', 'error');
+        });
+    },
+
+    closeDetailModal: function() {
+      this.showDetailModal = false;
+    },
+
+    // ========================
+    // Actions
+    // ========================
+    approveOrder: function(id) {
+      var vm = this;
+      if (!confirm('Approve this purchase order?')) return;
+      axios.post('/purchase/api/purchase-orders/' + id + '/approve/')
+        .then(function() {
+          showToast('Purchase order approved');
+          vm.showDetailModal = false;
+          vm.fetchOrders();
+        })
+        .catch(function(err) {
+          var msg = (err.response && err.response.data && err.response.data.error) || 'Failed to approve';
+          showToast(msg, 'error');
+        });
+    },
+
+    openReceiveModal: function(id) {
+      this.receivingId = id;
+      this.autoCreateInvoice = false;
+      this.showReceiveModal = true;
+    },
+
+    receiveOrder: function() {
+      var vm = this;
+      if (vm.submitting) return;
+      vm.submitting = true;
+      axios.post('/purchase/api/purchase-orders/' + vm.receivingId + '/receive/', {
+        auto_create_invoice: vm.autoCreateInvoice
+      })
+        .then(function() {
+          showToast('Purchase order received');
+          vm.showReceiveModal = false;
+          vm.showDetailModal = false;
+          vm.submitting = false;
+          vm.fetchOrders();
+        })
+        .catch(function(err) {
+          var msg = (err.response && err.response.data && err.response.data.error) || 'Failed to receive order';
+          showToast(msg, 'error');
+          vm.submitting = false;
+        });
+    },
+
+    cancelOrder: function(id) {
+      var vm = this;
+      if (!confirm('Cancel this purchase order? This cannot be undone.')) return;
+      axios.post('/purchase/api/purchase-orders/' + id + '/cancel/')
+        .then(function() {
+          showToast('Purchase order cancelled');
+          vm.showDetailModal = false;
+          vm.fetchOrders();
+        })
+        .catch(function(err) {
+          var msg = (err.response && err.response.data && err.response.data.error) || 'Failed to cancel';
+          showToast(msg, 'error');
+        });
+    },
+
+    deleteOrder: function(id) {
+      var vm = this;
+      if (!confirm('Delete this draft purchase order? This cannot be undone.')) return;
+      axios.delete('/purchase/api/purchase-orders/' + id)
+        .then(function() {
+          showToast('Purchase order deleted');
+          vm.showDetailModal = false;
+          vm.fetchOrders();
+        })
+        .catch(function(err) {
+          var msg = (err.response && err.response.data && err.response.data.error) || 'Failed to delete';
+          showToast(msg, 'error');
+        });
+    }
+  }
+});
+</script>
+{% endblock %}

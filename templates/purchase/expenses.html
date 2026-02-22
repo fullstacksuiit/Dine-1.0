@@ -1,0 +1,778 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Expenses | DinePay{% endblock %}
+
+{% block breadcrumb %}
+<span class="breadcrumb-restaurant">{{ request.restaurant.display_name|default:request.restaurant.name|default:"DinePay" }}</span>
+<span class="breadcrumb-sep">/</span>
+<span class="breadcrumb-page">Expenses</span>
+{% endblock %}
+
+{% block inline_css %}
+<style>
+  @keyframes modalSlideUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="purchaseApp" v-cloak>
+  <div class="max-w-6xl mx-auto px-4 py-2">
+
+    <!-- Page Header -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 pb-3 border-b border-gray-100">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-primary-50 flex items-center justify-center">
+          <i data-feather="credit-card" class="text-primary-500" style="width:20px;height:20px;"></i>
+        </div>
+        <div>
+          <h1 class="text-2xl font-bold text-gray-800">Expenses</h1>
+          <p class="text-xs text-gray-400 mt-0.5">Track and manage your restaurant expenses</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="flex items-center gap-6 border-b border-gray-200 mb-4">
+      <button @click="activeTab = 'expenses'" class="pb-3 px-1 text-sm transition-colors"
+        :class="activeTab === 'expenses' ? 'border-b-2 border-primary-500 text-primary-600 font-semibold' : 'text-gray-500 hover:text-gray-700'">
+        Expenses
+      </button>
+      <button @click="activeTab = 'categories'" class="pb-3 px-1 text-sm transition-colors"
+        :class="activeTab === 'categories' ? 'border-b-2 border-primary-500 text-primary-600 font-semibold' : 'text-gray-500 hover:text-gray-700'">
+        Categories
+      </button>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- EXPENSES TAB                                 -->
+    <!-- ============================================ -->
+    <div v-show="activeTab === 'expenses'">
+
+      <!-- Action Bar -->
+      <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-4">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div class="flex items-center gap-3">
+            <!-- Category Filter -->
+            <select v-model="filterCategoryId" @change="fetchExpenses"
+              class="px-3 py-1.5 rounded-lg border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none w-48">
+              <option value="">All Categories</option>
+              <option v-for="cat in categories" :key="cat.id" :value="cat.id">[[ cat.name ]]</option>
+            </select>
+            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-primary-50 text-primary-500 whitespace-nowrap">
+              [[ expenses.length ]] expense[[ expenses.length !== 1 ? 's' : '' ]]
+            </span>
+          </div>
+          <button @click="openExpenseModal()" class="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-primary-500 hover:bg-primary-700 transition-colors shadow-sm inline-flex items-center gap-1.5">
+            <i data-feather="plus" class="w-[18px] h-[18px]"></i> Add Expense
+          </button>
+        </div>
+      </div>
+
+      <!-- Expenses Table Card -->
+      <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+        <!-- Loading State -->
+        <div v-if="loadingExpenses" class="flex flex-col items-center py-12 text-gray-400">
+          <p class="text-sm font-medium">Loading expenses...</p>
+        </div>
+
+        <!-- Empty State -->
+        <div v-else-if="expenses.length === 0" class="flex flex-col items-center py-12 text-gray-400">
+          <div class="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center mb-4">
+            <i data-feather="credit-card" class="text-gray-300" style="width:28px;height:28px;"></i>
+          </div>
+          <p class="text-sm font-medium">No expenses found.</p>
+          <p class="text-xs mt-1">Click "Add Expense" to record your first expense.</p>
+        </div>
+
+        <!-- Table -->
+        <div v-else class="overflow-x-auto -m-6">
+          <table class="w-full">
+            <thead class="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
+                <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Description</th>
+                <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Category</th>
+                <th class="text-right px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
+                <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Payment Mode</th>
+                <th class="text-center px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              <tr v-for="expense in expenses" :key="expense.id" class="hover:bg-gray-50/50 transition-colors">
+                <td class="px-5 py-4 text-sm text-gray-600 whitespace-nowrap">[[ formatDate(expense.expense_date) ]]</td>
+                <td class="px-5 py-4">
+                  <div class="text-sm font-medium text-gray-800">[[ expense.description ]]</div>
+                  <div v-if="expense.vendor_name" class="text-xs text-gray-400 mt-0.5">[[ expense.vendor_name ]]</div>
+                </td>
+                <td class="px-5 py-4">
+                  <span v-if="expense.category_name" class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-primary-50 text-primary-600">
+                    [[ expense.category_name ]]
+                  </span>
+                  <span v-else class="text-xs text-gray-400">-</span>
+                </td>
+                <td class="px-5 py-4 text-sm font-semibold text-gray-800 text-right whitespace-nowrap">[[ formatCurrency(expense.amount) ]]</td>
+                <td class="px-5 py-4">
+                  <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
+                    [[ formatPaymentMode(expense.payment_mode) ]]
+                  </span>
+                </td>
+                <td class="px-5 py-4 text-center">
+                  <div class="inline-flex items-center gap-1">
+                    <button class="p-1.5 rounded-lg text-gray-400 hover:text-primary-500 hover:bg-primary-50 transition-colors" @click="openExpenseModal(expense)" title="Edit">
+                      <i data-feather="edit-2" class="w-[18px] h-[18px]"></i>
+                    </button>
+                    <button class="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors" @click="confirmDeleteExpense(expense)" title="Delete">
+                      <i data-feather="trash-2" class="w-[18px] h-[18px]"></i>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- CATEGORIES TAB                               -->
+    <!-- ============================================ -->
+    <div v-show="activeTab === 'categories'">
+
+      <!-- Action Bar -->
+      <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-4">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-primary-50 text-primary-500 whitespace-nowrap">
+            [[ categories.length ]] categor[[ categories.length !== 1 ? 'ies' : 'y' ]]
+          </span>
+          <button @click="openCategoryModal()" class="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-primary-500 hover:bg-primary-700 transition-colors shadow-sm inline-flex items-center gap-1.5">
+            <i data-feather="plus" class="w-[18px] h-[18px]"></i> Add Category
+          </button>
+        </div>
+      </div>
+
+      <!-- Categories Table Card -->
+      <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+        <!-- Loading State -->
+        <div v-if="loadingCategories" class="flex flex-col items-center py-12 text-gray-400">
+          <p class="text-sm font-medium">Loading categories...</p>
+        </div>
+
+        <!-- Empty State -->
+        <div v-else-if="categories.length === 0" class="flex flex-col items-center py-12 text-gray-400">
+          <div class="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center mb-4">
+            <i data-feather="folder" class="text-gray-300" style="width:28px;height:28px;"></i>
+          </div>
+          <p class="text-sm font-medium">No categories yet.</p>
+          <p class="text-xs mt-1">Click "Add Category" to create one.</p>
+        </div>
+
+        <!-- Table -->
+        <div v-else class="overflow-x-auto -m-6">
+          <table class="w-full">
+            <thead class="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Name</th>
+                <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Description</th>
+                <th class="text-center px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              <tr v-for="cat in categories" :key="cat.id" class="hover:bg-gray-50/50 transition-colors">
+                <td class="px-5 py-4">
+                  <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-full bg-primary-50 flex items-center justify-center text-sm font-bold text-primary-500">
+                      [[ cat.name.charAt(0).toUpperCase() ]]
+                    </div>
+                    <span class="font-semibold text-gray-800 text-sm">[[ cat.name ]]</span>
+                  </div>
+                </td>
+                <td class="px-5 py-4 text-sm text-gray-600">[[ cat.description || '-' ]]</td>
+                <td class="px-5 py-4 text-center">
+                  <div class="inline-flex items-center gap-1">
+                    <button class="p-1.5 rounded-lg text-gray-400 hover:text-primary-500 hover:bg-primary-50 transition-colors" @click="openCategoryModal(cat)" title="Edit">
+                      <i data-feather="edit-2" class="w-[18px] h-[18px]"></i>
+                    </button>
+                    <button class="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors" @click="confirmDeleteCategory(cat)" title="Delete">
+                      <i data-feather="trash-2" class="w-[18px] h-[18px]"></i>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================ -->
+  <!-- EXPENSE ADD/EDIT MODAL                       -->
+  <!-- ============================================ -->
+  <div v-if="showExpenseModal" class="fixed inset-0 bg-gray-900/75 backdrop-blur-sm flex items-center justify-center z-[1000]" @click.self="closeExpenseModal">
+    <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto" style="animation: modalSlideUp 0.25s ease-out;">
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between mb-5">
+        <h3 class="text-xl font-bold text-gray-800">[[ isEditExpense ? 'Edit Expense' : 'Add Expense' ]]</h3>
+        <button @click="closeExpenseModal" class="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors">
+          <i data-feather="x" class="w-[18px] h-[18px]"></i>
+        </button>
+      </div>
+
+      <!-- Modal Form -->
+      <form @submit.prevent="saveExpense">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Description -->
+          <div class="md:col-span-2">
+            <label class="block text-sm font-semibold text-primary-600 mb-1.5">Description *</label>
+            <input type="text" v-model="expenseForm.description" required
+              class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all"
+              placeholder="What was this expense for?">
+          </div>
+
+          <!-- Amount -->
+          <div>
+            <label class="block text-sm font-semibold text-primary-600 mb-1.5">Amount *</label>
+            <input type="number" v-model="expenseForm.amount" required min="0" step="0.01"
+              class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all"
+              placeholder="0.00">
+          </div>
+
+          <!-- Expense Date -->
+          <div>
+            <label class="block text-sm font-semibold text-primary-600 mb-1.5">Date *</label>
+            <input type="date" v-model="expenseForm.expense_date" required
+              class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+          </div>
+
+          <!-- Category -->
+          <div>
+            <label class="block text-sm font-semibold text-primary-600 mb-1.5">Category</label>
+            <select v-model="expenseForm.category_id"
+              class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+              <option value="">No Category</option>
+              <option v-for="cat in categories" :key="cat.id" :value="cat.id">[[ cat.name ]]</option>
+            </select>
+          </div>
+
+          <!-- Vendor -->
+          <div>
+            <label class="block text-sm font-semibold text-primary-600 mb-1.5">Vendor</label>
+            <select v-model="expenseForm.vendor_id"
+              class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+              <option value="">No Vendor</option>
+              <option v-for="v in vendors" :key="v.id" :value="v.id">[[ v.name ]]</option>
+            </select>
+          </div>
+
+          <!-- Payment Mode -->
+          <div>
+            <label class="block text-sm font-semibold text-primary-600 mb-1.5">Payment Mode</label>
+            <select v-model="expenseForm.payment_mode"
+              class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+              <option value="CASH">Cash</option>
+              <option value="BANK_TRANSFER">Bank Transfer</option>
+              <option value="UPI">UPI</option>
+              <option value="CHEQUE">Cheque</option>
+              <option value="OTHER">Other</option>
+            </select>
+          </div>
+
+          <!-- Reference Number -->
+          <div>
+            <label class="block text-sm font-semibold text-primary-600 mb-1.5">Reference Number</label>
+            <input type="text" v-model="expenseForm.reference_number"
+              class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all"
+              placeholder="Transaction ID, cheque no., etc.">
+          </div>
+
+          <!-- Notes -->
+          <div class="md:col-span-2">
+            <label class="block text-sm font-semibold text-primary-600 mb-1.5">Notes</label>
+            <textarea v-model="expenseForm.notes" rows="3"
+              class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all resize-none"
+              placeholder="Additional notes..."></textarea>
+          </div>
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="flex items-center justify-end gap-3 pt-5 mt-5 border-t border-gray-100">
+          <button type="button" @click="closeExpenseModal" class="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">
+            Cancel
+          </button>
+          <button type="submit" :disabled="saving" class="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-primary-500 hover:bg-primary-700 transition-colors shadow-sm">
+            [[ saving ? 'Saving...' : (isEditExpense ? 'Update Expense' : 'Add Expense') ]]
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============================================ -->
+  <!-- CATEGORY ADD/EDIT MODAL                      -->
+  <!-- ============================================ -->
+  <div v-if="showCategoryModal" class="fixed inset-0 bg-gray-900/75 backdrop-blur-sm flex items-center justify-center z-[1000]" @click.self="closeCategoryModal">
+    <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg mx-4" style="animation: modalSlideUp 0.25s ease-out;">
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between mb-5">
+        <h3 class="text-xl font-bold text-gray-800">[[ isEditCategory ? 'Edit Category' : 'Add Category' ]]</h3>
+        <button @click="closeCategoryModal" class="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors">
+          <i data-feather="x" class="w-[18px] h-[18px]"></i>
+        </button>
+      </div>
+
+      <!-- Modal Form -->
+      <form @submit.prevent="saveCategory">
+        <div class="mb-4">
+          <label class="block text-sm font-semibold text-primary-600 mb-1.5">Name *</label>
+          <input type="text" v-model="categoryForm.name" required
+            class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all"
+            placeholder="Category name">
+        </div>
+        <div class="mb-5">
+          <label class="block text-sm font-semibold text-primary-600 mb-1.5">Description</label>
+          <textarea v-model="categoryForm.description" rows="3"
+            class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all resize-none"
+            placeholder="Optional description..."></textarea>
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
+          <button type="button" @click="closeCategoryModal" class="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">
+            Cancel
+          </button>
+          <button type="submit" :disabled="saving" class="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-primary-500 hover:bg-primary-700 transition-colors shadow-sm">
+            [[ saving ? 'Saving...' : (isEditCategory ? 'Update Category' : 'Add Category') ]]
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============================================ -->
+  <!-- DELETE CONFIRMATION MODAL                    -->
+  <!-- ============================================ -->
+  <div v-if="showDeleteModal" class="fixed inset-0 bg-gray-900/75 backdrop-blur-sm flex items-center justify-center z-[1000]" @click.self="showDeleteModal = false">
+    <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4 text-center" style="animation: modalSlideUp 0.25s ease-out;">
+      <div class="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
+        <i data-feather="alert-triangle" class="text-red-500" style="width:24px;height:24px;"></i>
+      </div>
+      <h5 class="text-lg font-bold text-gray-800 mb-2">[[ deleteType === 'expense' ? 'Delete Expense' : 'Delete Category' ]]</h5>
+      <p class="text-sm text-gray-500 mb-6">Are you sure you want to delete <span class="font-semibold text-gray-700">[[ deleteTargetName ]]</span>? This action cannot be undone.</p>
+      <div class="flex items-center justify-center gap-3">
+        <button @click="showDeleteModal = false" class="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">
+          Cancel
+        </button>
+        <button @click="executeDelete" :disabled="saving" class="px-4 py-2 rounded-lg text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 transition-colors">
+          [[ saving ? 'Deleting...' : 'Delete' ]]
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'assets/js/vue.min.js' %}"></script>
+<script src="{% static 'assets/js/axios.js' %}"></script>
+<script>
+  // CSRF token setup for axios
+  axios.defaults.headers.common['X-CSRFToken'] = (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || '';
+
+  new Vue({
+    el: '#purchaseApp',
+    delimiters: ['[[', ']]'],
+    data: {
+      activeTab: 'expenses',
+
+      // Expenses
+      expenses: [],
+      loadingExpenses: true,
+      filterCategoryId: '',
+
+      // Categories
+      categories: [],
+      loadingCategories: true,
+
+      // Vendors (for expense form dropdown)
+      vendors: [],
+
+      // Expense modal
+      showExpenseModal: false,
+      isEditExpense: false,
+      editExpenseId: null,
+      expenseForm: {
+        description: '',
+        amount: '',
+        expense_date: '',
+        category_id: '',
+        vendor_id: '',
+        payment_mode: 'CASH',
+        reference_number: '',
+        notes: ''
+      },
+
+      // Category modal
+      showCategoryModal: false,
+      isEditCategory: false,
+      editCategoryId: null,
+      categoryForm: {
+        name: '',
+        description: ''
+      },
+
+      // Delete modal
+      showDeleteModal: false,
+      deleteType: '',
+      deleteTargetId: null,
+      deleteTargetName: '',
+
+      // General
+      saving: false
+    },
+    mounted: function() {
+      this.fetchCategories();
+      this.fetchExpenses();
+      this.fetchVendors();
+    },
+    methods: {
+      // -------------------------------------------
+      // Data Fetching
+      // -------------------------------------------
+      fetchExpenses: function() {
+        var self = this;
+        self.loadingExpenses = true;
+        var url = '/purchase/api/expenses/';
+        if (self.filterCategoryId) {
+          url += '?category_id=' + self.filterCategoryId;
+        }
+        axios.get(url)
+          .then(function(res) {
+            self.expenses = res.data;
+          })
+          .catch(function() {
+            showToast('Failed to load expenses', 'error');
+          })
+          .finally(function() {
+            self.loadingExpenses = false;
+            self.$nextTick(function() { if (window.feather) feather.replace(); });
+          });
+      },
+
+      fetchCategories: function() {
+        var self = this;
+        self.loadingCategories = true;
+        axios.get('/purchase/api/expense-categories/')
+          .then(function(res) {
+            self.categories = res.data;
+          })
+          .catch(function() {
+            showToast('Failed to load categories', 'error');
+          })
+          .finally(function() {
+            self.loadingCategories = false;
+            self.$nextTick(function() { if (window.feather) feather.replace(); });
+          });
+      },
+
+      fetchVendors: function() {
+        var self = this;
+        axios.get('/purchase/api/vendors/')
+          .then(function(res) {
+            self.vendors = res.data;
+          })
+          .catch(function() {
+            // Silently fail - vendors are optional
+          });
+      },
+
+      // -------------------------------------------
+      // Formatting Helpers
+      // -------------------------------------------
+      formatDate: function(dateStr) {
+        if (!dateStr) return '-';
+        var parts = dateStr.split('-');
+        if (parts.length !== 3) return dateStr;
+        return parts[2] + '/' + parts[1] + '/' + parts[0];
+      },
+
+      formatCurrency: function(amount) {
+        if (amount === null || amount === undefined) return '-';
+        var num = parseFloat(amount);
+        if (isNaN(num)) return '-';
+        return '\u20B9' + num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      },
+
+      formatPaymentMode: function(mode) {
+        if (!mode) return '-';
+        var map = {
+          'CASH': 'Cash',
+          'BANK_TRANSFER': 'Bank Transfer',
+          'UPI': 'UPI',
+          'CHEQUE': 'Cheque',
+          'OTHER': 'Other'
+        };
+        return map[mode] || mode;
+      },
+
+      // -------------------------------------------
+      // Expense Modal
+      // -------------------------------------------
+      resetExpenseForm: function() {
+        this.expenseForm = {
+          description: '',
+          amount: '',
+          expense_date: '',
+          category_id: '',
+          vendor_id: '',
+          payment_mode: 'CASH',
+          reference_number: '',
+          notes: ''
+        };
+      },
+
+      openExpenseModal: function(expense) {
+        if (expense) {
+          this.isEditExpense = true;
+          this.editExpenseId = expense.id;
+          this.expenseForm = {
+            description: expense.description || '',
+            amount: expense.amount || '',
+            expense_date: expense.expense_date || '',
+            category_id: expense.category || '',
+            vendor_id: expense.vendor || '',
+            payment_mode: expense.payment_mode || 'CASH',
+            reference_number: expense.reference_number || '',
+            notes: expense.notes || ''
+          };
+        } else {
+          this.isEditExpense = false;
+          this.editExpenseId = null;
+          this.resetExpenseForm();
+          // Default date to today
+          var today = new Date();
+          var yyyy = today.getFullYear();
+          var mm = String(today.getMonth() + 1).padStart(2, '0');
+          var dd = String(today.getDate()).padStart(2, '0');
+          this.expenseForm.expense_date = yyyy + '-' + mm + '-' + dd;
+        }
+        this.showExpenseModal = true;
+        this.$nextTick(function() { if (window.feather) feather.replace(); });
+      },
+
+      closeExpenseModal: function() {
+        this.showExpenseModal = false;
+        this.isEditExpense = false;
+        this.editExpenseId = null;
+        this.resetExpenseForm();
+      },
+
+      saveExpense: function() {
+        var self = this;
+        if (!self.expenseForm.description.trim()) {
+          showToast('Description is required', 'error');
+          return;
+        }
+        if (!self.expenseForm.amount || parseFloat(self.expenseForm.amount) <= 0) {
+          showToast('Please enter a valid amount', 'error');
+          return;
+        }
+        if (!self.expenseForm.expense_date) {
+          showToast('Date is required', 'error');
+          return;
+        }
+
+        self.saving = true;
+        var payload = {
+          description: self.expenseForm.description.trim(),
+          amount: parseFloat(self.expenseForm.amount),
+          expense_date: self.expenseForm.expense_date,
+          category_id: self.expenseForm.category_id || null,
+          vendor_id: self.expenseForm.vendor_id || null,
+          payment_mode: self.expenseForm.payment_mode,
+          reference_number: self.expenseForm.reference_number || null,
+          notes: self.expenseForm.notes || null
+        };
+
+        var request;
+        if (self.isEditExpense) {
+          request = axios.put('/purchase/api/expenses/' + self.editExpenseId + '/', payload, {
+            headers: { 'Content-Type': 'application/json' }
+          });
+        } else {
+          request = axios.post('/purchase/api/expenses/', payload, {
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+
+        request
+          .then(function() {
+            showToast(self.isEditExpense ? 'Expense updated successfully' : 'Expense added successfully', 'success');
+            self.closeExpenseModal();
+            self.fetchExpenses();
+          })
+          .catch(function(err) {
+            var msg = 'Failed to save expense';
+            if (err.response && err.response.data) {
+              var data = err.response.data;
+              if (typeof data === 'string') msg = data;
+              else if (data.detail) msg = data.detail;
+              else if (data.error) msg = data.error;
+              else {
+                var firstKey = Object.keys(data)[0];
+                if (firstKey) {
+                  var val = data[firstKey];
+                  msg = firstKey + ': ' + (Array.isArray(val) ? val[0] : val);
+                }
+              }
+            }
+            showToast(msg, 'error');
+          })
+          .finally(function() {
+            self.saving = false;
+          });
+      },
+
+      // -------------------------------------------
+      // Category Modal
+      // -------------------------------------------
+      resetCategoryForm: function() {
+        this.categoryForm = {
+          name: '',
+          description: ''
+        };
+      },
+
+      openCategoryModal: function(category) {
+        if (category) {
+          this.isEditCategory = true;
+          this.editCategoryId = category.id;
+          this.categoryForm = {
+            name: category.name || '',
+            description: category.description || ''
+          };
+        } else {
+          this.isEditCategory = false;
+          this.editCategoryId = null;
+          this.resetCategoryForm();
+        }
+        this.showCategoryModal = true;
+        this.$nextTick(function() { if (window.feather) feather.replace(); });
+      },
+
+      closeCategoryModal: function() {
+        this.showCategoryModal = false;
+        this.isEditCategory = false;
+        this.editCategoryId = null;
+        this.resetCategoryForm();
+      },
+
+      saveCategory: function() {
+        var self = this;
+        if (!self.categoryForm.name.trim()) {
+          showToast('Category name is required', 'error');
+          return;
+        }
+
+        self.saving = true;
+        var payload = {
+          name: self.categoryForm.name.trim(),
+          description: self.categoryForm.description || ''
+        };
+
+        var request;
+        if (self.isEditCategory) {
+          request = axios.put('/purchase/api/expense-categories/' + self.editCategoryId + '/', payload, {
+            headers: { 'Content-Type': 'application/json' }
+          });
+        } else {
+          request = axios.post('/purchase/api/expense-categories/', payload, {
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+
+        request
+          .then(function() {
+            showToast(self.isEditCategory ? 'Category updated successfully' : 'Category added successfully', 'success');
+            self.closeCategoryModal();
+            self.fetchCategories();
+          })
+          .catch(function(err) {
+            var msg = 'Failed to save category';
+            if (err.response && err.response.data) {
+              var data = err.response.data;
+              if (typeof data === 'string') msg = data;
+              else if (data.detail) msg = data.detail;
+              else if (data.error) msg = data.error;
+              else {
+                var firstKey = Object.keys(data)[0];
+                if (firstKey) {
+                  var val = data[firstKey];
+                  msg = firstKey + ': ' + (Array.isArray(val) ? val[0] : val);
+                }
+              }
+            }
+            showToast(msg, 'error');
+          })
+          .finally(function() {
+            self.saving = false;
+          });
+      },
+
+      // -------------------------------------------
+      // Delete
+      // -------------------------------------------
+      confirmDeleteExpense: function(expense) {
+        this.deleteType = 'expense';
+        this.deleteTargetId = expense.id;
+        this.deleteTargetName = expense.description;
+        this.showDeleteModal = true;
+        this.$nextTick(function() { if (window.feather) feather.replace(); });
+      },
+
+      confirmDeleteCategory: function(category) {
+        this.deleteType = 'category';
+        this.deleteTargetId = category.id;
+        this.deleteTargetName = category.name;
+        this.showDeleteModal = true;
+        this.$nextTick(function() { if (window.feather) feather.replace(); });
+      },
+
+      executeDelete: function() {
+        var self = this;
+        self.saving = true;
+        var url;
+        if (self.deleteType === 'expense') {
+          url = '/purchase/api/expenses/' + self.deleteTargetId + '/';
+        } else {
+          url = '/purchase/api/expense-categories/' + self.deleteTargetId + '/';
+        }
+
+        axios.delete(url)
+          .then(function() {
+            showToast((self.deleteType === 'expense' ? 'Expense' : 'Category') + ' deleted successfully', 'success');
+            self.showDeleteModal = false;
+            self.deleteTargetId = null;
+            self.deleteTargetName = '';
+            if (self.deleteType === 'expense') {
+              self.fetchExpenses();
+            } else {
+              self.fetchCategories();
+              // Refresh expenses too in case the deleted category was in use
+              self.fetchExpenses();
+            }
+          })
+          .catch(function() {
+            showToast('Failed to delete ' + self.deleteType, 'error');
+          })
+          .finally(function() {
+            self.saving = false;
+          });
+      }
+    }
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,605 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Customers | DinePay{% endblock %}
+
+{% block breadcrumb %}
+<span class="breadcrumb-restaurant">{{ request.restaurant.display_name|default:request.restaurant.name|default:"DinePay" }}</span>
+<span class="breadcrumb-sep">/</span>
+<span class="breadcrumb-page">Customers</span>
+{% endblock %}
+
+{% block inline_css %}
+<style>
+  @keyframes modalSlideUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="purchaseApp" v-cloak>
+  <div class="max-w-7xl mx-auto px-4 py-2">
+
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 pb-3 border-b border-gray-100">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-primary-50 flex items-center justify-center">
+          <i data-feather="user" class="text-primary-500" style="width:20px;height:20px;"></i>
+        </div>
+        <div>
+          <h1 class="text-2xl font-bold text-gray-800">Customers</h1>
+          <p class="text-xs text-gray-400 mt-0.5">[[ customers.length ]] total</p>
+        </div>
+      </div>
+      <button class="mt-3 sm:mt-0 inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-primary-500 hover:bg-primary-700 transition-colors shadow-sm" @click="openAddModal">
+        <i data-feather="user-plus" style="width:16px;height:16px;"></i> Add Customer
+      </button>
+    </div>
+
+    <!-- Search Bar -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-4">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+        <div class="relative flex-1 w-full">
+          <i data-feather="search" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" style="width:16px;height:16px;"></i>
+          <input type="text" v-model="searchQuery" placeholder="Search by name or phone..."
+            class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+        </div>
+        <span class="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold bg-primary-50 text-primary-500 whitespace-nowrap">
+          [[ filteredCustomers.length ]] result[[ filteredCustomers.length !== 1 ? 's' : '' ]]
+        </span>
+      </div>
+    </div>
+
+    <!-- Empty State -->
+    <div v-if="customers.length === 0 && !loading" class="bg-white rounded-2xl border border-gray-100 shadow-sm py-16 text-center">
+      <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gray-50 mb-4">
+        <i data-feather="users" class="text-gray-300" style="width:28px;height:28px;"></i>
+      </div>
+      <p class="text-gray-400 text-sm mb-1">No customers yet.</p>
+      <p class="text-xs text-gray-300 mb-4">Add your first customer to get started.</p>
+      <button class="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-primary-500 hover:bg-primary-700 transition-colors shadow-sm" @click="openAddModal">
+        <i data-feather="user-plus" style="width:14px;height:14px;"></i> Add Customer
+      </button>
+    </div>
+
+    <!-- Loading State -->
+    <div v-if="loading" class="bg-white rounded-2xl border border-gray-100 shadow-sm py-16 text-center">
+      <div class="inline-flex items-center gap-2 text-sm text-gray-400">
+        <svg class="animate-spin w-5 h-5 text-primary-500" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+        </svg>
+        Loading customers...
+      </div>
+    </div>
+
+    <!-- No Results -->
+    <div v-if="customers.length > 0 && filteredCustomers.length === 0 && !loading" class="bg-white rounded-2xl border border-gray-100 shadow-sm py-12 text-center">
+      <div class="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gray-50 mb-3">
+        <i data-feather="search" class="text-gray-300" style="width:20px;height:20px;"></i>
+      </div>
+      <p class="text-gray-400 text-sm">No customers match "[[ searchQuery ]]"</p>
+    </div>
+
+    <!-- Customers Table -->
+    <div v-if="filteredCustomers.length > 0" class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead class="bg-gray-50 border-b border-gray-200">
+            <tr>
+              <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Name</th>
+              <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Phone</th>
+              <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider hidden md:table-cell">Email</th>
+              <th class="text-right px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Credit Limit</th>
+              <th class="text-right px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Opening Balance</th>
+              <th class="text-center px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr v-for="customer in filteredCustomers" :key="customer.id" class="hover:bg-gray-50/50 transition-colors">
+              <td class="px-5 py-4">
+                <div class="flex items-center gap-3">
+                  <div class="w-9 h-9 rounded-full bg-primary-50 flex items-center justify-center text-sm font-bold text-primary-500">
+                    [[ customer.name ? customer.name.charAt(0).toUpperCase() : '?' ]]
+                  </div>
+                  <div>
+                    <div class="font-semibold text-gray-800 text-sm cursor-pointer hover:text-primary-600" @click="openEditModal(customer)">[[ customer.name ]]</div>
+                    <div v-if="customer.city" class="text-xs text-gray-400">[[ customer.city ]]<span v-if="customer.state">, [[ customer.state ]]</span></div>
+                  </div>
+                </div>
+              </td>
+              <td class="px-5 py-4 text-sm text-gray-600 font-medium">[[ customer.phone ]]</td>
+              <td class="px-5 py-4 text-sm text-gray-500 hidden md:table-cell">[[ customer.email || '---' ]]</td>
+              <td class="px-5 py-4 text-sm text-gray-700 font-semibold text-right">[[ formatCurrency(customer.credit_limit) ]]</td>
+              <td class="px-5 py-4 text-sm text-gray-700 font-semibold text-right">[[ formatCurrency(customer.opening_balance) ]]</td>
+              <td class="px-5 py-4 text-center">
+                <div class="inline-flex items-center gap-1">
+                  <button class="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" @click="viewOutstanding(customer)" title="View Outstanding">
+                    <i data-feather="eye" style="width:16px;height:16px;"></i>
+                  </button>
+                  <button class="p-1.5 rounded-lg text-gray-400 hover:text-primary-500 hover:bg-primary-50 transition-colors" @click="openEditModal(customer)" title="Edit">
+                    <i data-feather="edit-2" style="width:16px;height:16px;"></i>
+                  </button>
+                  <button class="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors" @click="openDeleteModal(customer)" title="Delete">
+                    <i data-feather="trash-2" style="width:16px;height:16px;"></i>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ==================== ADD / EDIT MODAL ==================== -->
+  <div v-if="showFormModal" class="fixed inset-0 bg-gray-900/75 backdrop-blur-sm flex items-center justify-center z-[1000]">
+    <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto" style="animation: modalSlideUp 0.25s ease-out;">
+      <div class="flex items-center justify-between mb-5">
+        <h3 class="text-xl font-bold text-gray-800">[[ editMode ? 'Edit Customer' : 'Add Customer' ]]</h3>
+        <button class="text-gray-400 hover:text-gray-600 text-xl leading-none" @click="closeFormModal">&times;</button>
+      </div>
+
+      <form @submit.prevent="saveCustomer">
+        <!-- Row 1: Name & Phone -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label class="block text-sm font-semibold text-primary-600 mb-1.5">Name *</label>
+            <input type="text" v-model="form.name" required placeholder="Customer name"
+              class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-primary-600 mb-1.5">Phone *</label>
+            <input type="text" v-model="form.phone" required placeholder="Phone number"
+              class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+          </div>
+        </div>
+
+        <!-- Row 2: Email & GSTIN -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label class="block text-sm font-semibold text-primary-600 mb-1.5">Email</label>
+            <input type="email" v-model="form.email" placeholder="email@example.com"
+              class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-primary-600 mb-1.5">GSTIN</label>
+            <input type="text" v-model="form.gstin" placeholder="22AAAAA0000A1Z5"
+              class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+          </div>
+        </div>
+
+        <!-- Row 3: Address -->
+        <div class="mb-4">
+          <label class="block text-sm font-semibold text-primary-600 mb-1.5">Address</label>
+          <input type="text" v-model="form.address_line" placeholder="Street address"
+            class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+        </div>
+
+        <!-- Row 4: City, State, Pincode -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+          <div>
+            <label class="block text-sm font-semibold text-primary-600 mb-1.5">City</label>
+            <input type="text" v-model="form.city" placeholder="City"
+              class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-primary-600 mb-1.5">State</label>
+            <input type="text" v-model="form.state" placeholder="State"
+              class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-primary-600 mb-1.5">Pincode</label>
+            <input type="text" v-model="form.pincode" placeholder="Pincode"
+              class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+          </div>
+        </div>
+
+        <!-- Row 5: Credit Limit & Opening Balance -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label class="block text-sm font-semibold text-primary-600 mb-1.5">Credit Limit</label>
+            <input type="number" v-model="form.credit_limit" min="0" step="0.01" placeholder="0.00"
+              class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-primary-600 mb-1.5">Opening Balance</label>
+            <input type="number" v-model="form.opening_balance" min="0" step="0.01" placeholder="0.00"
+              class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all">
+          </div>
+        </div>
+
+        <!-- Row 6: Notes -->
+        <div class="mb-5">
+          <label class="block text-sm font-semibold text-primary-600 mb-1.5">Notes</label>
+          <textarea v-model="form.notes" rows="2" placeholder="Any additional notes..."
+            class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all resize-none"></textarea>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex items-center justify-end gap-3">
+          <button type="button" class="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors" @click="closeFormModal">Cancel</button>
+          <button type="submit" :disabled="saving" class="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-primary-500 hover:bg-primary-700 transition-colors shadow-sm inline-flex items-center gap-1.5">
+            <svg v-if="saving" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            [[ editMode ? 'Update' : 'Save' ]]
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== DELETE CONFIRMATION MODAL ==================== -->
+  <div v-if="showDeleteModal" class="fixed inset-0 bg-gray-900/75 backdrop-blur-sm flex items-center justify-center z-[1000]">
+    <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4 text-center" style="animation: modalSlideUp 0.25s ease-out;">
+      <div class="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
+        <i data-feather="alert-triangle" class="text-red-500" style="width:28px;height:28px;"></i>
+      </div>
+      <h5 class="text-lg font-bold text-gray-800 mb-2">Delete [[ deleteTarget ? deleteTarget.name : '' ]]?</h5>
+      <p class="text-sm text-gray-400 mb-6">This action cannot be undone. All associated data will be removed.</p>
+      <div class="flex items-center justify-center gap-3">
+        <button class="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors" @click="closeDeleteModal">Cancel</button>
+        <button class="px-4 py-2 rounded-lg text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 transition-colors inline-flex items-center gap-1.5" :disabled="saving" @click="confirmDelete">
+          <i data-feather="trash-2" style="width:14px;height:14px;"></i> Delete
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== OUTSTANDING MODAL ==================== -->
+  <div v-if="showOutstandingModal" class="fixed inset-0 bg-gray-900/75 backdrop-blur-sm flex items-center justify-center z-[1000]">
+    <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto" style="animation: modalSlideUp 0.25s ease-out;">
+      <div class="flex items-center justify-between mb-5">
+        <h3 class="text-xl font-bold text-gray-800">Outstanding Details</h3>
+        <button class="text-gray-400 hover:text-gray-600 text-xl leading-none" @click="closeOutstandingModal">&times;</button>
+      </div>
+
+      <!-- Loading -->
+      <div v-if="outstandingLoading" class="py-12 text-center">
+        <div class="inline-flex items-center gap-2 text-sm text-gray-400">
+          <svg class="animate-spin w-5 h-5 text-primary-500" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+          </svg>
+          Loading outstanding data...
+        </div>
+      </div>
+
+      <div v-if="!outstandingLoading && outstandingData">
+        <!-- Customer Info -->
+        <div class="bg-gray-50 rounded-xl p-4 mb-5">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Customer</div>
+              <div class="text-sm font-bold text-gray-800">[[ outstandingData.customer.name ]]</div>
+              <div class="text-xs text-gray-500 mt-0.5">[[ outstandingData.customer.phone ]]</div>
+              <div v-if="outstandingData.customer.email" class="text-xs text-gray-500">[[ outstandingData.customer.email ]]</div>
+            </div>
+            <div class="text-left sm:text-right">
+              <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Outstanding Balance</div>
+              <div class="text-3xl font-black" :class="parseFloat(outstandingData.outstanding_balance) > 0 ? 'text-red-500' : 'text-green-500'">
+                [[ formatCurrency(outstandingData.outstanding_balance) ]]
+              </div>
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold mt-1"
+                :class="parseFloat(outstandingData.outstanding_balance) > 0 ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'">
+                [[ parseFloat(outstandingData.outstanding_balance) > 0 ? 'Outstanding' : 'Settled' ]]
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Payment History -->
+        <div>
+          <h4 class="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+            <i data-feather="list" style="width:16px;height:16px;" class="text-gray-400"></i>
+            Payment History
+          </h4>
+
+          <div v-if="outstandingData.payments && outstandingData.payments.length > 0" class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="w-full">
+                <thead class="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
+                    <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Mode</th>
+                    <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Reference</th>
+                    <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
+                    <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Notes</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                  <tr v-for="payment in outstandingData.payments" :key="payment.id" class="hover:bg-gray-50/50">
+                    <td class="px-4 py-3 text-sm text-gray-700">[[ formatDate(payment.payment_date) ]]</td>
+                    <td class="px-4 py-3">
+                      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-600">
+                        [[ formatPaymentMode(payment.payment_mode) ]]
+                      </span>
+                    </td>
+                    <td class="px-4 py-3 text-sm text-gray-500">[[ payment.reference_number || '---' ]]</td>
+                    <td class="px-4 py-3 text-sm font-semibold text-green-600 text-right">[[ formatCurrency(payment.amount) ]]</td>
+                    <td class="px-4 py-3 text-sm text-gray-400 max-w-[150px] truncate">[[ payment.notes || '---' ]]</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div v-else class="bg-gray-50 rounded-xl py-8 text-center">
+            <div class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-white mb-2">
+              <i data-feather="inbox" class="text-gray-300" style="width:20px;height:20px;"></i>
+            </div>
+            <p class="text-sm text-gray-400">No payments recorded yet.</p>
+          </div>
+        </div>
+
+        <!-- Close Button -->
+        <div class="flex items-center justify-end mt-5">
+          <button class="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors" @click="closeOutstandingModal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'assets/js/vue.min.js' %}"></script>
+<script src="{% static 'assets/js/axios.js' %}"></script>
+<script>
+var app = new Vue({
+  el: '#purchaseApp',
+  delimiters: ['[[', ']]'],
+  data: {
+    customers: [],
+    loading: true,
+    saving: false,
+    searchQuery: '',
+
+    // Form modal
+    showFormModal: false,
+    editMode: false,
+    editId: null,
+    form: {
+      name: '',
+      phone: '',
+      email: '',
+      gstin: '',
+      address_line: '',
+      city: '',
+      state: '',
+      pincode: '',
+      credit_limit: 0,
+      opening_balance: 0,
+      notes: '',
+    },
+
+    // Delete modal
+    showDeleteModal: false,
+    deleteTarget: null,
+
+    // Outstanding modal
+    showOutstandingModal: false,
+    outstandingLoading: false,
+    outstandingData: null,
+  },
+
+  computed: {
+    filteredCustomers: function() {
+      var q = this.searchQuery.toLowerCase().trim();
+      if (!q) return this.customers;
+      return this.customers.filter(function(c) {
+        return (c.name && c.name.toLowerCase().indexOf(q) !== -1) ||
+               (c.phone && c.phone.toLowerCase().indexOf(q) !== -1);
+      });
+    },
+  },
+
+  mounted: function() {
+    this.fetchCustomers();
+  },
+
+  methods: {
+    // ---- API ----
+    fetchCustomers: function() {
+      var self = this;
+      self.loading = true;
+      axios.get('/purchase/api/customers/')
+        .then(function(res) {
+          self.customers = res.data;
+        })
+        .catch(function(err) {
+          console.error(err);
+          showToast('Failed to load customers', 'error');
+        })
+        .finally(function() {
+          self.loading = false;
+          self.$nextTick(function() { if (window.feather) feather.replace(); });
+        });
+    },
+
+    saveCustomer: function() {
+      var self = this;
+      self.saving = true;
+
+      var payload = Object.assign({}, self.form);
+      // Clean empty strings to null for optional fields
+      ['email', 'gstin', 'address_line', 'city', 'state', 'pincode', 'notes'].forEach(function(key) {
+        if (payload[key] === '') payload[key] = null;
+      });
+
+      var request;
+      if (self.editMode) {
+        request = axios.put('/purchase/api/customers/' + self.editId + '/', payload);
+      } else {
+        request = axios.post('/purchase/api/customers/', payload);
+      }
+
+      request
+        .then(function(res) {
+          if (self.editMode) {
+            var idx = self.customers.findIndex(function(c) { return c.id === self.editId; });
+            if (idx !== -1) self.$set(self.customers, idx, res.data);
+            showToast('Customer updated successfully', 'success');
+          } else {
+            self.customers.push(res.data);
+            showToast('Customer added successfully', 'success');
+          }
+          self.closeFormModal();
+        })
+        .catch(function(err) {
+          var msg = 'Something went wrong';
+          if (err.response && err.response.data) {
+            if (err.response.data.error) {
+              msg = err.response.data.error;
+            } else if (typeof err.response.data === 'object') {
+              var firstKey = Object.keys(err.response.data)[0];
+              var val = err.response.data[firstKey];
+              msg = firstKey + ': ' + (Array.isArray(val) ? val[0] : val);
+            }
+          }
+          showToast(msg, 'error');
+        })
+        .finally(function() {
+          self.saving = false;
+        });
+    },
+
+    confirmDelete: function() {
+      var self = this;
+      if (!self.deleteTarget) return;
+      self.saving = true;
+
+      axios.delete('/purchase/api/customers/' + self.deleteTarget.id + '/')
+        .then(function() {
+          self.customers = self.customers.filter(function(c) { return c.id !== self.deleteTarget.id; });
+          showToast('Customer deleted successfully', 'success');
+          self.closeDeleteModal();
+        })
+        .catch(function(err) {
+          var msg = 'Failed to delete customer';
+          if (err.response && err.response.data && err.response.data.error) {
+            msg = err.response.data.error;
+          }
+          showToast(msg, 'error');
+        })
+        .finally(function() {
+          self.saving = false;
+        });
+    },
+
+    viewOutstanding: function(customer) {
+      var self = this;
+      self.showOutstandingModal = true;
+      self.outstandingLoading = true;
+      self.outstandingData = null;
+
+      axios.get('/purchase/api/customers/' + customer.id + '/outstanding/')
+        .then(function(res) {
+          self.outstandingData = res.data;
+        })
+        .catch(function(err) {
+          console.error(err);
+          showToast('Failed to load outstanding data', 'error');
+          self.showOutstandingModal = false;
+        })
+        .finally(function() {
+          self.outstandingLoading = false;
+          self.$nextTick(function() { if (window.feather) feather.replace(); });
+        });
+    },
+
+    // ---- Modals ----
+    openAddModal: function() {
+      this.editMode = false;
+      this.editId = null;
+      this.resetForm();
+      this.showFormModal = true;
+      this.$nextTick(function() { if (window.feather) feather.replace(); });
+    },
+
+    openEditModal: function(customer) {
+      this.editMode = true;
+      this.editId = customer.id;
+      this.form = {
+        name: customer.name || '',
+        phone: customer.phone || '',
+        email: customer.email || '',
+        gstin: customer.gstin || '',
+        address_line: customer.address_line || '',
+        city: customer.city || '',
+        state: customer.state || '',
+        pincode: customer.pincode || '',
+        credit_limit: customer.credit_limit || 0,
+        opening_balance: customer.opening_balance || 0,
+        notes: customer.notes || '',
+      };
+      this.showFormModal = true;
+      this.$nextTick(function() { if (window.feather) feather.replace(); });
+    },
+
+    closeFormModal: function() {
+      this.showFormModal = false;
+      this.editMode = false;
+      this.editId = null;
+      this.resetForm();
+    },
+
+    openDeleteModal: function(customer) {
+      this.deleteTarget = customer;
+      this.showDeleteModal = true;
+      this.$nextTick(function() { if (window.feather) feather.replace(); });
+    },
+
+    closeDeleteModal: function() {
+      this.showDeleteModal = false;
+      this.deleteTarget = null;
+    },
+
+    closeOutstandingModal: function() {
+      this.showOutstandingModal = false;
+      this.outstandingData = null;
+    },
+
+    resetForm: function() {
+      this.form = {
+        name: '',
+        phone: '',
+        email: '',
+        gstin: '',
+        address_line: '',
+        city: '',
+        state: '',
+        pincode: '',
+        credit_limit: 0,
+        opening_balance: 0,
+        notes: '',
+      };
+    },
+
+    // ---- Formatting ----
+    formatCurrency: function(val) {
+      var num = parseFloat(val);
+      if (isNaN(num)) return '₹0.00';
+      return '₹' + num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    },
+
+    formatDate: function(dateStr) {
+      if (!dateStr) return '---';
+      var d = new Date(dateStr);
+      return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    },
+
+    formatPaymentMode: function(mode) {
+      if (!mode) return '---';
+      return mode.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+    },
+  },
+});
+</script>
+{% endblock %}
