@@ -75,11 +75,49 @@
         </div>
       </form>
 
-      <!-- Summary -->
-      <div class="mt-4 bg-green-50 border-l-4 border-green-400 rounded-lg px-4 py-3 text-sm font-medium text-gray-700">
-        Avg: ₹{{ avg|default_if_none:"0.00" }} | Total: ₹{{ total_sale|default_if_none:"0.00" }}
+      <!-- Summary Cards -->
+      <div class="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+        <!-- Average -->
+        <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-3.5">
+          <div class="flex items-center gap-2.5 mb-2">
+            <div class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
+              <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line></svg>
+            </div>
+            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Average</p>
+          </div>
+          <p class="text-lg font-bold text-gray-800">₹{{ avg|default_if_none:"0.00" }}</p>
+        </div>
+        <!-- Total Sale -->
+        <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-3.5">
+          <div class="flex items-center gap-2.5 mb-2">
+            <div class="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
+              <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"></path></svg>
+            </div>
+            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Total</p>
+          </div>
+          <p class="text-lg font-bold text-gray-800">₹{{ total_sale|default_if_none:"0.00" }}</p>
+        </div>
+        <!-- Payment Type Breakdowns -->
         {% for payment in total_sale_payment_type %}
-          | {{ payment.payment_type }}: ₹{{ payment.total_amount|default_if_none:"0.00" }}
+        <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-3.5">
+          <div class="flex items-center gap-2.5 mb-2">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center {% if payment.payment_type == 'CASH' %}bg-green-50{% elif payment.payment_type == 'UPI' %}bg-purple-50{% elif payment.payment_type == 'CARD' %}bg-indigo-50{% elif payment.payment_type == 'CREDIT' %}bg-amber-50{% else %}bg-gray-50{% endif %}">
+              {% if payment.payment_type == 'CASH' %}
+              <svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
+              {% elif payment.payment_type == 'UPI' %}
+              <svg class="w-4 h-4 text-purple-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
+              {% elif payment.payment_type == 'CARD' %}
+              <svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
+              {% elif payment.payment_type == 'CREDIT' %}
+              <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+              {% else %}
+              <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"></path></svg>
+              {% endif %}
+            </div>
+            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide">{{ payment.payment_type }}</p>
+          </div>
+          <p class="text-lg font-bold text-gray-800">₹{{ payment.total_amount|default_if_none:"0.00" }}</p>
+        </div>
         {% endfor %}
       </div>
 

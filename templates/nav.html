@@ -142,16 +142,6 @@
   </ul>
   {% endif %}
 
-  <!-- Logout -->
-  <div class="mt-3 pt-3 px-2 border-t border-gray-100">
-    <form method="post" action="{% url 'logout' %}" style="margin:0;">
-      {% csrf_token %}
-      <button type="submit" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-red-500 font-medium hover:bg-red-50 hover:text-red-600 w-full text-left transition-all">
-        <i data-feather="log-out" class="w-[18px] h-[18px] opacity-70"></i>
-        Logout
-      </button>
-    </form>
-  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js" defer></script>
@@ -178,7 +168,7 @@
         localStorage.setItem('navCollapsed_' + key, this.collapsed[key] ? '1' : '0');
       },
       isActive(href) {
-        return window.location.pathname === href || window.location.href.includes(href);
+        return window.location.pathname === href || window.location.pathname === href.replace(/\?.*$/, '');
       },
       initSortable(elId, storageKey) {
         const el = document.getElementById(elId);
